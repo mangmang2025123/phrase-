@@ -24,8 +24,9 @@ document.addEventListener('keydown', (event) => {
         chrome.runtime.sendMessage({ action: "analyzeText", text: textContent }, (response) => {
           if (chrome.runtime.lastError) {
             // Handle errors from sending the message (e.g., if background script isn't ready)
-            console.error("Error sending message to background script:", chrome.runtime.lastError.message);
-            displayAnalysis(originalElementForAnalysis, `Error: ${chrome.runtime.lastError.message}`, true);
+            const LCRmessage = `Failed to communicate with the extension's background script: ${chrome.runtime.lastError.message}. If the extension was just installed or updated, try reloading the page.`;
+            console.error("Error sending message to background script:", LCRmessage);
+            displayAnalysis(originalElementForAnalysis, `Error: ${LCRmessage}`, true); // Enhanced message
             return;
           }
           
