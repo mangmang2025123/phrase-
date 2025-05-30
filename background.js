@@ -2,16 +2,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "analyzeText") {
     const textToAnalyze = request.text;
 
-    chrome.storage.local.get(['apiEndpoint', 'apiKey'], (config) => {
+    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelName'], (config) => {
       if (!config.apiEndpoint || !config.apiKey) {
         console.error('API endpoint or key not configured.');
         sendResponse({ error: "API not configured. Please set it in the extension popup." });
         return true; 
       }
+      
+      const modelForAnalysis = config.modelName || "gpt-3.5-turbo"; // Default if not set
 
       const fullPrompt = `I'm a beginner in English. I know some individual words, but I don't know which words should be read together as fixed expressions or collocations. Please help me analyze the following sentence. Show me all the word groups that are fixed expressions, collocations, or commonly used phrases — like “right now”, “as soon as possible”, or “by the way”. For each group, explain what it means in simple English. answer in chinese The sentence is: ${textToAnalyze}`;
       const requestBody = {
-        model: "gpt-3.5-turbo", 
+        model: modelForAnalysis, 
         messages: [
           { role: "user", content: fullPrompt }
         ],
@@ -51,16 +53,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Crucial for async analyzeText
 
   } else if (request.action === "testApiConfig") {
-    const { endpoint, apiKey } = request;
+    const { endpoint, apiKey, model: modelFromPopup } = request; // Renamed to avoid conflict
 
+    // Validation for endpoint and apiKey still makes sense here
     if (!endpoint || !apiKey) {
       sendResponse({ success: false, error: "Endpoint or API Key missing in test request." });
-      return false; // Synchronous response for this validation error
+      return true; // Asynchronous, even for this early return
     }
     
-    // Simple test payload for OpenAI-compatible APIs
+    const modelForTest = modelFromPopup || "gpt-3.5-turbo"; // Default if model not provided from popup
+
     const testBody = {
-      model: "gpt-3.5-turbo", // Or a known small model
+      model: modelForTest, 
       messages: [{ role: "user", content: "Hello!" }],
       max_tokens: 5 
     };
