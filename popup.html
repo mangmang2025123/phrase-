@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Text Analyzer Settings</title>
+  <style>
+    body { font-family: sans-serif; width: 300px; padding: 10px; }
+    label { display: block; margin-top: 10px; }
+    input[type='text'], input[type='password'] { width: 95%; padding: 5px; margin-top: 3px; }
+    button { margin-top: 15px; padding: 8px 12px; }
+    #status { margin-top: 10px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <h2>Settings</h2>
+  
+  <label for="apiEndpoint">API Endpoint:</label>
+  <input type="text" id="apiEndpoint" placeholder="e.g., https://api.openai.com/v1/chat/completions">
+  
+  <label for="apiKey">API Key:</label>
+  <input type="password" id="apiKey">
+  
+  <button id="save">Save Settings</button>
+  <div id="status"></div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
