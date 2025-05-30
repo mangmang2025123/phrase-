@@ -2,14 +2,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "analyzeText") {
     const textToAnalyze = request.text;
 
-    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelName'], (config) => {
+    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelPresets', 'selectedModelPresetIndex'], (config) => {
       if (!config.apiEndpoint || !config.apiKey) {
         console.error('API endpoint or key not configured.');
         sendResponse({ error: "API not configured. Please set it in the extension popup." });
         return true; 
       }
       
-      const modelForAnalysis = config.modelName || "gpt-3.5-turbo"; // Default if not set
+      let modelForAnalysis = "gpt-3.5-turbo"; // Default model
+      if (config.modelPresets && Array.isArray(config.modelPresets) &&
+          typeof config.selectedModelPresetIndex === 'number' &&
+          config.selectedModelPresetIndex >= 0 &&
+          config.selectedModelPresetIndex < config.modelPresets.length &&
+          config.modelPresets[config.selectedModelPresetIndex] && // Check if the preset string itself is not empty
+          config.modelPresets[config.selectedModelPresetIndex].trim() !== "") {
+        modelForAnalysis = config.modelPresets[config.selectedModelPresetIndex];
+      } else {
+        console.warn(`Text Analyzer: Model preset not properly configured or selected. Defaulting to ${modelForAnalysis}. Presets: ${JSON.stringify(config.modelPresets)}, Index: ${config.selectedModelPresetIndex}`);
+      }
 
       const fullPrompt = `I'm a beginner in English. I know some individual words, but I don't know which words should be read together as fixed expressions or collocations. Please help me analyze the following sentence. Show me all the word groups that are fixed expressions, collocations, or commonly used phrases — like “right now”, “as soon as possible”, or “by the way”. For each group, explain what it means in simple English. answer in chinese The sentence is: ${textToAnalyze}`;
       const requestBody = {

@@ -15,10 +15,7 @@ document.addEventListener('keydown', (event) => {
       const textContent = lastHoveredElement.textContent?.trim();
       
       if (textContent) {
-        console.log("Hotkey pressed. Text to analyze:", textContent);
-        // Store a reference to the element for later display.
-        // If the element is removed or changed before response, this might fail.
-        // A more robust way might involve adding a temporary ID to the element.
+        // console.log("Hotkey pressed. Text to analyze:", textContent); // Optional: original console log
         const originalElementForAnalysis = lastHoveredElement; 
 
         chrome.runtime.sendMessage({ action: "analyzeText", text: textContent }, (response) => {
@@ -35,7 +32,7 @@ document.addEventListener('keydown', (event) => {
               console.error("Error from background script:", response.error);
               displayAnalysis(originalElementForAnalysis, `Error: ${response.error}`, true);
             } else if (response.analysis) {
-              console.log("Analysis received:", response.analysis);
+              // console.log("Analysis received:", response.analysis); // Optional: original console log
               displayAnalysis(originalElementForAnalysis, response.analysis, false);
             }
           } else {
@@ -46,10 +43,10 @@ document.addEventListener('keydown', (event) => {
           }
         });
       } else {
-        console.log("Hotkey pressed, but no text content found in the hovered element.");
+        // console.log("Hotkey pressed, but no text content found in the hovered element."); // Optional: original console log
       }
     } else {
-      console.log("Hotkey pressed, but no element was hovered.");
+      // console.log("Hotkey pressed, but no element was hovered."); // Optional: original console log
     }
   }
 });
@@ -62,11 +59,6 @@ function displayAnalysis(originalElement, analysisText, isError) {
     return;
   }
 
-  // Remove any existing analysis display for this element if we decide to re-analyze
-  // For now, we'll allow multiple, but this could be changed.
-  // Example: const existingAnalysisDiv = document.getElementById(`analysis_for_${originalElement.dataset.analysisId}`);
-  // if (existingAnalysisDiv) existingAnalysisDiv.remove();
-
   const analysisDiv = document.createElement('div');
   analysisDisplayIdCounter++;
   const uniqueId = `text_analyzer_ai_helper_result_${analysisDisplayIdCounter}`;
@@ -78,15 +70,13 @@ function displayAnalysis(originalElement, analysisText, isError) {
   analysisDiv.style.fontSize = '0.9em';
   analysisDiv.style.fontFamily = 'sans-serif';
   analysisDiv.style.color = isError ? 'red' : '#333';
-  analysisDiv.style.textAlign = 'left'; // Explicitly set text alignment
-  analysisDiv.style.whiteSpace = 'pre-wrap'; // Preserve whitespace and newlines from LLM
+  analysisDiv.style.textAlign = 'left'; 
+  analysisDiv.style.whiteSpace = 'pre-wrap'; 
   
   analysisDiv.textContent = analysisText;
 
-  // Insert after the original element
   originalElement.parentNode.insertBefore(analysisDiv, originalElement.nextSibling);
   
-  // Optional: Add a way for the user to dismiss the analysis
   const closeButton = document.createElement('button');
   closeButton.textContent = 'Close Analysis';
   closeButton.style.display = 'block';
@@ -98,4 +88,4 @@ function displayAnalysis(originalElement, analysisText, isError) {
   analysisDiv.appendChild(closeButton);
 }
 
-console.log("Text Analyzer AI Helper content script loaded.");
+// console.log("Text Analyzer AI Helper content script loaded."); // Optional: original final console log
