@@ -1,60 +1,135 @@
-let lastHoveredElement = null;
-let analysisDisplayIdCounter = 0; // To give unique IDs to analysis divs if needed
+// let lastHoveredElement = null; // Old listener, commented out
+let analysisDisplayIdCounter = 0; // To give unique IDs to analysis divs if needed - Keep for displayAnalysis
 
 // Track the element currently under the mouse
-document.addEventListener('mouseover', (event) => {
-  lastHoveredElement = event.target;
-});
+// document.addEventListener('mouseover', (event) => {
+//   lastHoveredElement = event.target;
+// });
 
-// Listen for the hotkey
-document.addEventListener('keydown', (event) => {
-  if (event.altKey && event.key === 'a') {
-    event.preventDefault(); // Prevent any default browser action for 'alt+a'
+// Listen for the hotkey - Old listener, commented out
+// document.addEventListener('keydown', (event) => {
+//   if (event.altKey && event.key === 'a') {
+//     event.preventDefault(); // Prevent any default browser action for 'alt+a'
 
-    if (lastHoveredElement) {
-      const textContent = lastHoveredElement.textContent?.trim();
+//     if (lastHoveredElement) {
+//       const textContent = lastHoveredElement.textContent?.trim();
 
-      if (textContent) {
-        // console.log("Hotkey pressed. Text to analyze:", textContent); // Optional: original console log
-        const originalElementForAnalysis = lastHoveredElement;
+//       if (textContent) {
+//         // console.log("Hotkey pressed. Text to analyze:", textContent); // Optional: original console log
+//         const originalElementForAnalysis = lastHoveredElement;
 
-        chrome.runtime.sendMessage({ action: "analyzeText", text: textContent }, (response) => {
-          if (chrome.runtime.lastError) {
-            // Handle errors from sending the message (e.g., if background script isn't ready)
-            const LCRmessage = `Failed to communicate with the extension's background script: ${chrome.runtime.lastError.message}. If the extension was just installed or updated, try reloading the page.`;
-            console.error("Error sending message to background script:", LCRmessage);
-            displayAnalysis(originalElementForAnalysis, `Error: ${LCRmessage}`, true); // Enhanced message
-            return;
-          }
+//         chrome.runtime.sendMessage({ action: "analyzeText", text: textContent }, (response) => { // OLD: sends only 'text'
+//           if (chrome.runtime.lastError) {
+//             const LCRmessage = `Failed to communicate with the extension's background script: ${chrome.runtime.lastError.message}. If the extension was just installed or updated, try reloading the page.`;
+//             console.error("Error sending message to background script:", LCRmessage);
+//             displayAnalysis(originalElementForAnalysis, `Error: ${LCRmessage}`, true);
+//             return;
+//           }
 
-          if (response) {
-            if (response.error) {
-              console.error("Error from background script:", response.error);
-              displayAnalysis(originalElementForAnalysis, `Error: ${response.error}`, true);
-            } else if (response.analysis) {
-              // console.log("Analysis received:", response.analysis); // Optional: original console log
-              displayAnalysis(originalElementForAnalysis, response.analysis, false);
-            }
-          } else {
-            // This case might occur if the background script doesn't send a response
-            // or if it was closed before responding.
-            console.error("No response from background script or response was undefined.");
-            displayAnalysis(originalElementForAnalysis, "Error: No response from analysis service.", true);
-          }
-        });
-      } else {
-        // console.log("Hotkey pressed, but no text content found in the hovered element."); // Optional: original console log
-      }
-    } else {
-      // console.log("Hotkey pressed, but no element was hovered."); // Optional: original console log
+//           if (response) {
+//             if (response.error) {
+//               console.error("Error from background script:", response.error);
+//               displayAnalysis(originalElementForAnalysis, `Error: ${response.error}`, true);
+//             } else if (response.analysis) {
+//               displayAnalysis(originalElementForAnalysis, response.analysis, false);
+//             }
+//           } else {
+//             console.error("No response from background script or response was undefined.");
+//             displayAnalysis(originalElementForAnalysis, "Error: No response from analysis service.", true);
+//           }
+//         });
+//       } else {
+//         // console.log("Hotkey pressed, but no text content found in the hovered element.");
+//       }
+//     } else {
+//       // console.log("Hotkey pressed, but no element was hovered.");
+//     }
+//   }
+// });
+
+let currentSelection = null; // To store the current Selection object
+let analysisPopupButton = null; // To hold reference to our button
+const POPUP_BUTTON_ID = 'textAnalysisExtensionPopupButton'; // ID for the button
+
+document.addEventListener('mouseup', (event) => {
+  // Don't trigger if clicking on our own popup button
+  if (event.target.id === POPUP_BUTTON_ID) {
+    return;
+  }
+
+  currentSelection = document.getSelection();
+  const selectedText = currentSelection.toString().trim();
+
+  if (selectedText) {
+    console.log("TEXT ANALYZER (New): Text selected - ", selectedText);
+    createOrShowAnalysisButton(currentSelection);
+  } else {
+    // If no text is selected, and the button exists, remove it.
+    // This handles cases where a selection is cleared without a mousedown (e.g., programmatic changes, some browser actions)
+    if(analysisPopupButton) {
+        removeAnalysisButton();
     }
   }
 });
 
+function createOrShowAnalysisButton(selectionObject) {
+  if (!analysisPopupButton) {
+    analysisPopupButton = document.createElement('button');
+    analysisPopupButton.id = POPUP_BUTTON_ID;
+    analysisPopupButton.textContent = 'Analyze Selection';
+    // Basic styling - fixed position for now
+    analysisPopupButton.style.position = 'fixed';
+    analysisPopupButton.style.bottom = '20px';
+    analysisPopupButton.style.right = '20px';
+    analysisPopupButton.style.zIndex = '99999'; // Ensure it's on top
+    analysisPopupButton.style.padding = '8px 12px';
+    analysisPopupButton.style.backgroundColor = '#4CAF50'; // Green
+    analysisPopupButton.style.color = 'white';
+    analysisPopupButton.style.border = 'none';
+    analysisPopupButton.style.borderRadius = '4px';
+    analysisPopupButton.style.cursor = 'pointer';
+
+    analysisPopupButton.addEventListener('click', () => {
+      const textToAnalyze = selectionObject.toString().trim();
+      if (textToAnalyze) {
+        // For this phase, just log. Later, this will get sentence & send to background.js
+        console.log("TEXT ANALYZER (New): Analyze button clicked for selection: ", textToAnalyze);
+        console.log("TEXT ANALYZER (New): Sentence detection and API call not implemented in this step.");
+        // Placeholder for where sentence detection and message sending will go:
+        // const sentence = getSentenceAroundSelection(selectionObject); // Future function
+        // chrome.runtime.sendMessage({ action: "analyzeText", sentence: sentence, selectedText: textToAnalyze }, response => { ... });
+      }
+      removeAnalysisButton(); // Remove button after click
+    });
+    document.body.appendChild(analysisPopupButton);
+  }
+  // If button already exists, ensure it's visible or update its state if needed (not necessary for fixed pos)
+}
+
+function removeAnalysisButton() {
+  if (analysisPopupButton) {
+    analysisPopupButton.remove();
+    analysisPopupButton = null;
+  }
+}
+
+document.addEventListener('mousedown', function(event) {
+    // If the click is not on the selection itself and not on our button,
+    // and a button exists, remove it.
+    // This helps hide the button if the user clicks away from the selection.
+    if (analysisPopupButton && event.target.id !== POPUP_BUTTON_ID) {
+        const selection = window.getSelection();
+        if (selection.isCollapsed) { // isCollapsed means no selection or just a caret
+             removeAnalysisButton();
+        }
+    }
+}, true); // Use capture phase to catch clicks early
+
+
+// displayAnalysis function remains for future use when API calls are re-integrated
 function displayAnalysis(originalElement, analysisText, isError) {
   if (!originalElement || !document.body.contains(originalElement)) {
     console.warn("Original element for analysis is no longer in the DOM. Cannot display analysis.");
-    // Optionally, show a general notification if the original element is gone.
     alert("Analysis result: " + analysisText);
     return;
   }
@@ -88,4 +163,4 @@ function displayAnalysis(originalElement, analysisText, isError) {
   analysisDiv.appendChild(closeButton);
 }
 
-// console.log("Text Analyzer AI Helper content script loaded."); // Optional: original final console log
+// console.log("Text Analyzer AI Helper content script loaded.");

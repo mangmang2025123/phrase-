@@ -1,8 +1,10 @@
-const DEFAULT_PROMPT_TEMPLATE_BG = "I'm a beginner in English. I know some individual words, but I don't know which words should be read together as fixed expressions or collocations. Please help me analyze the following sentence. Show me all the word groups that are fixed expressions, collocations, or commonly used phrases — like “right now”, “as soon as possible”, or “by the way”. For each group, explain what it means in simple English. answer in chinese The sentence is: {{TEXT_TO_ANALYZE}}";
+const DEFAULT_PROMPT_TEMPLATE_BG = "In the following sentence, please explain the meaning of '{{SELECTED_TEXT}}'. Answer in Chinese. Sentence: {{SENTENCE}}";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "analyzeText") {
-    const textToAnalyze = request.text;
+    // const textToAnalyze = request.text; // This will change
+    const sentenceText = request.sentence; // New
+    const selectedTextInSentence = request.selectedText; // New
 
     chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelPresets', 'selectedModelPresetIndex', 'customPromptTemplate'], (config) => {
       if (!config.apiEndpoint || !config.apiKey) {
@@ -23,17 +25,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         console.warn(`Text Analyzer: Model preset not properly configured or selected. Defaulting to ${modelForAnalysis}. Presets: ${JSON.stringify(config.modelPresets)}, Index: ${config.selectedModelPresetIndex}`);
       }
 
-      let chosenPromptTemplate = DEFAULT_PROMPT_TEMPLATE_BG; // Default to the background's default
-      if (config.customPromptTemplate && typeof config.customPromptTemplate === 'string' && config.customPromptTemplate.includes("{{TEXT_TO_ANALYZE}}")) {
+      let chosenPromptTemplate = DEFAULT_PROMPT_TEMPLATE_BG;
+      if (config.customPromptTemplate && typeof config.customPromptTemplate === 'string' &&
+          config.customPromptTemplate.includes("{{SENTENCE}}") && config.customPromptTemplate.includes("{{SELECTED_TEXT}}")) {
         chosenPromptTemplate = config.customPromptTemplate;
       } else if (config.customPromptTemplate) {
-        // This case means a custom prompt exists but is invalid (missing placeholder)
-        // Log an error/warning and use default. Or, popup.js should ideally prevent saving invalid ones.
-        console.warn("Text Analyzer: Invalid custom prompt found in storage (missing placeholder). Using default prompt.");
+        console.warn("Text Analyzer: Invalid custom prompt (missing placeholders). Using default.");
       }
-      // If config.customPromptTemplate is null/undefined, chosenPromptTemplate remains DEFAULT_PROMPT_TEMPLATE_BG
 
-      const finalPrompt = chosenPromptTemplate.replace("{{TEXT_TO_ANALYZE}}", textToAnalyze);
+      // Replace both placeholders
+      let finalPrompt = chosenPromptTemplate.replace("{{SENTENCE}}", sentenceText);
+      finalPrompt = finalPrompt.replace("{{SELECTED_TEXT}}", selectedTextInSentence);
 
       const requestBody = {
         model: modelForAnalysis, // This logic for modelForAnalysis should already exist

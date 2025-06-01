@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const DEFAULT_PROMPT_TEMPLATE = "I'm a beginner in English. I know some individual words, but I don't know which words should be read together as fixed expressions or collocations. Please help me analyze the following sentence. Show me all the word groups that are fixed expressions, collocations, or commonly used phrases — like “right now”, “as soon as possible”, or “by the way”. For each group, explain what it means in simple English. answer in chinese The sentence is: {{TEXT_TO_ANALYZE}}";
+  const DEFAULT_PROMPT_TEMPLATE = "In the following sentence, please explain the meaning of '{{SELECTED_TEXT}}'. Answer in Chinese. Sentence: {{SENTENCE}}";
 
   // View navigation elements
   const showSettingsViewButton = document.getElementById('showSettingsView');
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updatePresetButtonLabels();
       highlightActivePresetButton();
 
-      if (result.customPromptTemplate && result.customPromptTemplate.includes("{{TEXT_TO_ANALYZE}}")) {
+      if (result.customPromptTemplate && result.customPromptTemplate.includes("{{SENTENCE}}") && result.customPromptTemplate.includes("{{SELECTED_TEXT}}")) {
         customPromptTextarea.value = result.customPromptTemplate;
       } else {
         customPromptTextarea.value = DEFAULT_PROMPT_TEMPLATE;
@@ -218,8 +218,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Custom Prompt Logic ---
   savePromptButton.addEventListener('click', () => {
     const newPrompt = customPromptTextarea.value.trim();
-    if (!newPrompt.includes("{{TEXT_TO_ANALYZE}}")) {
-      promptStatusDiv.textContent = 'Error: Prompt must include the {{TEXT_TO_ANALYZE}} placeholder.';
+    if (!newPrompt.includes("{{SENTENCE}}") || !newPrompt.includes("{{SELECTED_TEXT}}")) {
+      promptStatusDiv.textContent = 'Error: Prompt must include both {{SENTENCE}} and {{SELECTED_TEXT}} placeholders.';
       promptStatusDiv.style.color = 'red';
       return;
     }
