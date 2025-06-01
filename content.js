@@ -1,38 +1,128 @@
-console.log("CONTENT.JS: Script loaded/reloaded - v2.");
-// let lastHoveredElement = null; // Old listener, commented out
-let analysisDisplayIdCounter = 0; // To give unique IDs to analysis divs if needed - Keep for displayAnalysis
+console.log("CONTENT.JS: Script loaded/reloaded - v2."); // Existing log
+let analysisDisplayIdCounter = 0;
 
-// Old listeners commented out (from previous steps)
-// document.addEventListener('mouseover', ...);
-// document.addEventListener('keydown', ...);
+// --- Long Click Variables ---
+let longClickTimer = null;
+let mouseDownX = 0;
+let mouseDownY = 0;
+let mouseDownTarget = null;
+let isStillConsideredMouseDown = false;
+const LONG_CLICK_DELAY = 500; // milliseconds
+const MOUSE_MOVE_THRESHOLD = 5; // pixels
 
-let currentSelection = null; // To store the current Selection object
-// let analysisPopupButton = null; // Old single button reference
-// const POPUP_BUTTON_ID = 'textAnalysisExtensionPopupButton'; // Old ID
-
-let actionButtonsContainer = null; // Will hold both T and S buttons
+// --- Selection Action Button Variables (from previous steps) ---
+let currentSelection = null;
+let actionButtonsContainer = null;
 const ACTION_BUTTON_CONTAINER_ID = 'textAnalysisExtensionActionContainer';
 
+
+// === New Long-Click Event Listeners ===
+
+document.addEventListener('mousedown', (event) => {
+  // Long-click specific mousedown logic
+  if (event.button !== 0) { // Only left clicks for long-click
+    return;
+  }
+
+  mouseDownTarget = event.target;
+  mouseDownX = event.clientX;
+  mouseDownY = event.clientY;
+  isStillConsideredMouseDown = true;
+
+  if (longClickTimer) {
+    clearTimeout(longClickTimer);
+    longClickTimer = null;
+  }
+
+  longClickTimer = setTimeout(() => {
+    handleLongClickTrigger(mouseDownTarget, mouseDownX, mouseDownY);
+  }, LONG_CLICK_DELAY);
+
+  console.log("CONTENT.JS: mousedown (long-click candidate), longClickTimer started.", longClickTimer);
+
+  // Existing mousedown logic for clearing selection buttons (from previous version)
+  // This needs to be reconciled. For now, it runs after the long-click mousedown logic.
+  // If a long click is in progress, this might prematurely clear the timer if not careful.
+  // The `isStillConsideredMouseDown` might help, or the order of listeners.
+  // Using capture for long-click mousedown ensures it runs first.
+  if (actionButtonsContainer &&
+      event.target.id !== ACTION_BUTTON_CONTAINER_ID &&
+      !actionButtonsContainer.contains(event.target)) {
+      const selection = window.getSelection();
+      if (selection.isCollapsed) {
+           removeActionButtons(); // This is for the T/S buttons
+      }
+  }
+}, true); // Use capture phase for mousedown
+
 document.addEventListener('mouseup', (event) => {
-  console.log("CONTENT.JS: Mouseup event triggered.");
-  // If the click was on one of our action buttons, let their listeners handle it.
+  // Long-click specific mouseup logic
+  if (event.button !== 0) { // Only left clicks
+    return;
+  }
+
+  if (longClickTimer) {
+    clearTimeout(longClickTimer);
+    longClickTimer = null;
+    console.log("CONTENT.JS: mouseup (long-click), longClickTimer cleared.");
+  }
+  isStillConsideredMouseDown = false;
+
+  // Existing mouseup logic for text selection (from previous version)
+  // This will run AFTER the long-click mouseup logic due to capture on long-click's mouseup.
+  console.log("CONTENT.JS: Mouseup event triggered (selection part).");
   if (event.target.tagName === 'BUTTON' && event.target.parentElement && event.target.parentElement.id === ACTION_BUTTON_CONTAINER_ID) {
     return;
   }
 
   currentSelection = document.getSelection();
   const selectedText = currentSelection.toString().trim();
-  console.log("CONTENT.JS: Selected text: '", selectedText, "'");
+  console.log("CONTENT.JS: Selected text (selection part): '", selectedText, "'");
 
   if (selectedText) {
-    console.log("TEXT ANALYZER (New): Text selected - ", selectedText);
+    console.log("TEXT ANALYZER (New): Text selected (selection part) - ", selectedText);
     createOrShowActionButtons(currentSelection);
   } else {
-    if(actionButtonsContainer) { // If no text selected, remove any existing button container
+    if(actionButtonsContainer) {
         removeActionButtons();
     }
   }
-});
+}, true); // Use capture phase for long-click mouseup
+
+document.addEventListener('mousemove', (event) => {
+  if (isStillConsideredMouseDown) {
+    const deltaX = Math.abs(event.clientX - mouseDownX);
+    const deltaY = Math.abs(event.clientY - mouseDownY);
+
+    if (deltaX > MOUSE_MOVE_THRESHOLD || deltaY > MOUSE_MOVE_THRESHOLD) {
+      if (longClickTimer) {
+        clearTimeout(longClickTimer);
+        longClickTimer = null;
+        console.log("CONTENT.JS: mousemove threshold exceeded, longClickTimer cleared.");
+      }
+      isStillConsideredMouseDown = false;
+    }
+  }
+}, true); // Use capture phase
+
+function handleLongClickTrigger(initialTarget, initialX, initialY) {
+  if (isStillConsideredMouseDown) {
+    console.log("CONTENT.JS: Long-click successfully triggered on target:", initialTarget, "at x:", initialX, "y:", initialY);
+
+    removeActionButtons(); // Hide T/S buttons if a selection previously showed them
+
+    // Placeholder for future logic:
+    // 1. Get word under cursor (initialX, initialY)
+    // 2. Get sentence context for that word
+    // 3. Call createOrShowActionButtons(...) with the new context / simulated selection
+
+    isStillConsideredMouseDown = false;
+  }
+  longClickTimer = null;
+}
+
+
+// === Existing Action Button and Display Logic (from previous steps) ===
 
 function createOrShowActionButtons(selectionObject) {
   console.log("CONTENT.JS: createOrShowActionButtons called. Current container state:", actionButtonsContainer);
@@ -41,10 +131,9 @@ function createOrShowActionButtons(selectionObject) {
     actionButtonsContainer.id = ACTION_BUTTON_CONTAINER_ID;
     actionButtonsContainer.style.position = 'absolute';
     actionButtonsContainer.style.zIndex = '99999';
-    actionButtonsContainer.style.display = 'flex'; // Arrange buttons in a row
-    actionButtonsContainer.style.gap = '3px'; // Space between buttons
+    actionButtonsContainer.style.display = 'flex';
+    actionButtonsContainer.style.gap = '3px';
 
-    // Create 'T' button
     const tButton = document.createElement('button');
     tButton.textContent = 'T';
     tButton.style.padding = '5px 8px';
@@ -57,7 +146,6 @@ function createOrShowActionButtons(selectionObject) {
     tButton.addEventListener('click', () => handleActionButtonClick(currentSelection, "explainSelectionInSentence"));
     actionButtonsContainer.appendChild(tButton);
 
-    // Create 'S' button
     const sButton = document.createElement('button');
     sButton.textContent = 'S';
     sButton.style.padding = '5px 8px';
@@ -77,12 +165,11 @@ function createOrShowActionButtons(selectionObject) {
       console.log("CONTENT.JS: Action buttons container appended to body.");
     } catch (e) {
       console.error("CONTENT.JS: Error appending action buttons container to body:", e);
-      actionButtonsContainer = null; // Reset if append failed
+      actionButtonsContainer = null;
       return;
     }
   }
 
-  // Positioning logic (applies to the container)
   const range = selectionObject.getRangeAt(0);
   const rect = range.getBoundingClientRect();
   actionButtonsContainer.style.top = (rect.bottom + window.scrollY + 3) + 'px';
@@ -93,7 +180,7 @@ function createOrShowActionButtons(selectionObject) {
 function handleActionButtonClick(selectionForContext, actionType) {
   console.log(`CONTENT.JS: ${actionType} action triggered.`);
   if (selectionForContext && selectionForContext.toString().trim()) {
-    const context = getSentenceContext(selectionForContext); // Existing function
+    const context = getSentenceContext(selectionForContext);
 
     if (context && context.selectedText && context.anchorElement) {
       console.log("CONTENT.JS: Sending to background for action:", actionType, { sentence: context.sentence, selectedText: context.selectedText });
@@ -133,7 +220,7 @@ function handleActionButtonClick(selectionForContext, actionType) {
   } else {
     console.warn(`CONTENT.JS: No valid selection found when ${actionType} was triggered.`);
   }
-  removeActionButtons(); // Remove container (and thus both buttons)
+  removeActionButtons();
 }
 
 function removeActionButtons() {
@@ -143,18 +230,6 @@ function removeActionButtons() {
     actionButtonsContainer = null;
   }
 }
-
-document.addEventListener('mousedown', function(event) {
-    if (actionButtonsContainer &&
-        event.target.id !== ACTION_BUTTON_CONTAINER_ID &&
-        !actionButtonsContainer.contains(event.target)) {
-        const selection = window.getSelection();
-        if (selection.isCollapsed) {
-             removeActionButtons();
-        }
-    }
-}, true);
-
 
 function getSentenceContext(selectionObject) {
   if (!selectionObject || selectionObject.rangeCount === 0) {
@@ -197,7 +272,7 @@ function getSentenceContext(selectionObject) {
 
   let startIndexInFullText = fullText.indexOf(selectedText);
 
-  if (startIndexInFullText === -1 && range.startContainer.textContent) {
+  if (startIndexInFullText === -1 && range.startContainer.parentElement) { // Added null check for parentElement
       const directParentText = range.startContainer.parentElement.textContent || "";
       startIndexInFullText = directParentText.indexOf(selectedText);
   }
@@ -213,7 +288,7 @@ function getSentenceContext(selectionObject) {
 
   while (sentenceStartIndex > 0) {
     const charBefore = fullText[sentenceStartIndex - 1];
-    if (sentenceEndChars.includes(charBefore) && (fullText[sentenceStartIndex] === ' ' || fullText[sentenceStartIndex] === '\n')) {
+    if (sentenceEndChars.includes(charBefore) && (sentenceStartIndex < fullText.length && (fullText[sentenceStartIndex] === ' ' || fullText[sentenceStartIndex] === '\n'))) {
       break;
     }
     sentenceStartIndex--;
@@ -235,8 +310,6 @@ function getSentenceContext(selectionObject) {
     console.warn("getSentenceContext: Derived sentence too long or does not contain selected text. Using a smaller local context.");
     const contextRadius = 150;
     const localStart = Math.max(0, startIndexInFullText - contextRadius);
-    const localEnd = Math.min(fullText.length, endIndexInFullText + contextRadius); // endIndexInFullText was used here, should be startIndexInFullText + selectedText.length
-    // Correcting localEnd based on definition of endIndexInFullText
     const correctedLocalEnd = Math.min(fullText.length, (startIndexInFullText + selectedText.length) + contextRadius);
     sentence = fullText.substring(localStart, correctedLocalEnd).trim();
     if (!sentence.includes(selectedText)) {
@@ -259,28 +332,47 @@ function displayAnalysis(originalElement, analysisText, isError) {
   analysisDisplayIdCounter++;
   const uniqueId = `text_analyzer_ai_helper_result_${analysisDisplayIdCounter}`;
   analysisDiv.id = uniqueId;
+  analysisDiv.style.position = 'absolute'; // Make analysis display absolute too
+  analysisDiv.style.zIndex = '100000'; // Higher than action buttons
   analysisDiv.style.marginTop = '5px';
-  analysisDiv.style.padding = '8px';
-  analysisDiv.style.border = '1px solid #ddd';
-  analysisDiv.style.backgroundColor = '#f9f9f9';
+  analysisDiv.style.padding = '10px'; // Increased padding
+  analysisDiv.style.border = '1px solid #ccc'; // More prominent border
+  analysisDiv.style.backgroundColor = isError ? '#fff0f0' : '#f9f9f9'; // Error color
   analysisDiv.style.fontSize = '0.9em';
   analysisDiv.style.fontFamily = 'sans-serif';
   analysisDiv.style.color = isError ? 'red' : '#333';
   analysisDiv.style.textAlign = 'left';
   analysisDiv.style.whiteSpace = 'pre-wrap';
+  analysisDiv.style.boxShadow = '0px 2px 5px rgba(0,0,0,0.1)'; // Add shadow
+  analysisDiv.style.maxWidth = '400px'; // Max width for readability
 
   analysisDiv.textContent = analysisText;
 
-  originalElement.parentNode.insertBefore(analysisDiv, originalElement.nextSibling);
+  // Position analysis div below the originalElement (which is anchorElement from context)
+  const anchorRect = originalElement.getBoundingClientRect();
+  analysisDiv.style.top = (anchorRect.bottom + window.scrollY + 5) + 'px';
+  analysisDiv.style.left = (anchorRect.left + window.scrollX) + 'px';
+
 
   const closeButton = document.createElement('button');
-  closeButton.textContent = 'Close Analysis';
-  closeButton.style.display = 'block';
-  closeButton.style.marginTop = '5px';
+  closeButton.textContent = 'X'; // Simpler close button
+  closeButton.style.position = 'absolute';
+  closeButton.style.top = '3px';
+  closeButton.style.right = '3px';
+  closeButton.style.padding = '1px 5px';
   closeButton.style.fontSize = '0.8em';
-  closeButton.onclick = () => {
+  closeButton.style.backgroundColor = '#eee';
+  closeButton.style.border = '1px solid #ccc';
+  closeButton.style.borderRadius = '50%';
+  closeButton.style.cursor = 'pointer';
+  closeButton.style.lineHeight = '1'; // Ensure X is centered if padding makes it tall
+
+  closeButton.onclick = (e) => {
+    e.stopPropagation(); // Prevent click from bubbling to other listeners
     analysisDiv.remove();
   };
   analysisDiv.appendChild(closeButton);
+
+  document.body.appendChild(analysisDiv); // Append to body for absolute positioning freedom
 }
 // console.log("Text Analyzer AI Helper content script loaded.");
