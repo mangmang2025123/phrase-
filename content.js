@@ -81,12 +81,12 @@ function createOrShowAnalysisButton(selectionObject) {
     analysisPopupButton = document.createElement('button');
     console.log("CONTENT.JS: Button element created locally:", analysisPopupButton);
     analysisPopupButton.id = POPUP_BUTTON_ID;
-    analysisPopupButton.textContent = 'Analyze Selection';
+    analysisPopupButton.textContent = 'T';
 
     // Styling for dynamic positioning and smaller size
     analysisPopupButton.style.position = 'absolute';
     analysisPopupButton.style.zIndex = '99999'; // Ensure it's on top
-    analysisPopupButton.style.padding = '4px 8px';
+    analysisPopupButton.style.padding = '5px 10px';
     analysisPopupButton.style.fontSize = '0.85em';
     analysisPopupButton.style.backgroundColor = '#4CAF50'; // Green
     analysisPopupButton.style.color = 'white';
