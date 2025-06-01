@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Text Analyzer Settings</title>
+  <style>
+    body { font-family: sans-serif; width: 300px; padding: 10px; } /* Keep existing or similar */
+    label { display: block; margin-top: 10px; }
+    input[type='text'], input[type='password'] { width: 95%; padding: 5px; margin-top: 3px; }
+    button { margin-top: 5px; /* Adjusted for potentially more buttons */ padding: 8px 12px; }
+    #status, #testResult { margin-top: 10px; font-size: 0.9em; }
+    /* Add styles for active/inactive nav buttons if desired later */
+  </style>
+</head>
+<body>
+  <div id="navControls" style="padding-bottom: 10px; border-bottom: 1px solid #ccc; margin-bottom: 10px;">
+    <button id="showSettingsView">Settings</button>
+    <button id="showModelPresetsView">Model Presets</button>
+    <button id="showPromptTemplatesView">Prompts</button>
+  </div>
+
+  <div id="settingsView">
+    <h2>Settings</h2>
+
+    <label for="apiEndpoint">API Endpoint:</label>
+  <input type="text" id="apiEndpoint" placeholder="e.g., https://api.openai.com/v1/chat/completions">
+
+  <label for="apiKey">API Key:</label>
+  <input type="password" id="apiKey">
+
+  <label>Selected Model:</label>
+  <div id="selectedModelDisplay" style="padding: 5px; border: 1px solid #eee; background: #f9f9f9; min-height: 20px; margin-top: 3px;">
+    No model selected
+  </div>
+
+  <div id="modelPresetSelectionControls" style="margin-top: 5px; margin-bottom: 10px;">
+    <label style="margin-bottom: 3px;">Choose a Preset:</label>
+    <button id="selectModelPreset1" data-preset-index="0">P1</button>
+    <button id="selectModelPreset2" data-preset-index="1">P2</button>
+    <button id="selectModelPreset3" data-preset-index="2">P3</button>
+    <button id="selectModelPreset4" data-preset-index="3">P4</button>
+    <button id="selectModelPreset5" data-preset-index="4">P5</button>
+  </div>
+
+  <button id="save">Save Settings</button>
+  <div id="status"></div>
+  <button id="testApiButton" style="margin-top: 5px;">Test API Configuration</button>
+  <div id="testResult" style="margin-top: 10px; font-size: 0.9em;"></div>
+  </div>
+
+  <div id="modelPresetsView" style="display: none;">
+    <h2>Model Presets</h2>
+    <p style="font-size: 0.9em; color: #555;">Define up to 5 model names you frequently use.</p>
+
+    <div>
+      <label for="modelPresetInput1">Preset 1:</label>
+      <input type="text" id="modelPresetInput1" placeholder="e.g., gpt-4o">
+    </div>
+    <div>
+      <label for="modelPresetInput2">Preset 2:</label>
+      <input type="text" id="modelPresetInput2" placeholder="e.g., gpt-3.5-turbo">
+    </div>
+    <div>
+      <label for="modelPresetInput3">Preset 3:</label>
+      <input type="text" id="modelPresetInput3">
+    </div>
+    <div>
+      <label for="modelPresetInput4">Preset 4:</label>
+      <input type="text" id="modelPresetInput4">
+    </div>
+    <div>
+      <label for="modelPresetInput5">Preset 5:</label>
+      <input type="text" id="modelPresetInput5">
+    </div>
+
+    <button id="saveModelPresets" style="margin-top: 15px;">Save Model Presets</button>
+    <div id="modelPresetsStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
+  </div>
+
+  <div id="promptTemplatesView" style="display: none;">
+    <h2>Prompt Templates</h2>
+
+    <!-- Prompt T Section -->
+    <div style="margin-bottom: 15px; padding-bottom:10px; border-bottom: 1px dashed #eee;">
+      <label for="promptTTemplate" style="font-weight: bold;">Prompt for 'T' Button (Explain Selection):</label>
+      <p class="prompt-desc" style="font-size: 0.85em; color: #444; margin-top:2px; margin-bottom: 3px;">Use <code>{{SENTENCE}}</code> for the full sentence and <code>{{SELECTED_TEXT}}</code> for the selected word/phrase.</p>
+      <textarea id="promptTTemplate" rows="6" style="width: 95%; margin-top: 2px; font-family: monospace; font-size: 0.9em;"></textarea>
+    </div>
+
+    <!-- Prompt S Section -->
+    <div style="margin-bottom: 15px;">
+      <label for="promptSTemplate" style="font-weight: bold;">Prompt for 'S' Button (Word Forms/Analysis):</label>
+      <p class="prompt-desc" style="font-size: 0.85em; color: #444; margin-top:2px; margin-bottom: 3px;">Use <code>{{SELECTED_TEXT}}</code>. The full sentence is also available as <code>{{SENTENCE}}</code> if needed by your prompt.</p>
+      <textarea id="promptSTemplate" rows="10" style="width: 95%; margin-top: 2px; font-family: monospace; font-size: 0.9em;"></textarea>
+    </div>
+
+    <button id="saveAllPromptsButton">Save All Prompts</button>
+    <button id="resetAllPromptsButton" style="margin-left: 5px;">Reset Both to Defaults</button>
+    <div id="allPromptsStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
