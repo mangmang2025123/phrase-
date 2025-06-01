@@ -82,17 +82,22 @@ function createOrShowAnalysisButton(selectionObject) {
     console.log("CONTENT.JS: Button element created locally:", analysisPopupButton);
     analysisPopupButton.id = POPUP_BUTTON_ID;
     analysisPopupButton.textContent = 'Analyze Selection';
-    // Basic styling - fixed position for now
-    analysisPopupButton.style.position = 'fixed';
-    analysisPopupButton.style.bottom = '20px';
-    analysisPopupButton.style.right = '20px';
+
+    // Styling for dynamic positioning and smaller size
+    analysisPopupButton.style.position = 'absolute';
     analysisPopupButton.style.zIndex = '99999'; // Ensure it's on top
-    analysisPopupButton.style.padding = '8px 12px';
+    analysisPopupButton.style.padding = '4px 8px';
+    analysisPopupButton.style.fontSize = '0.85em';
     analysisPopupButton.style.backgroundColor = '#4CAF50'; // Green
     analysisPopupButton.style.color = 'white';
     analysisPopupButton.style.border = 'none';
     analysisPopupButton.style.borderRadius = '4px';
     analysisPopupButton.style.cursor = 'pointer';
+
+    const range = selectionObject.getRangeAt(0); // Get the first range of the selection
+    const rect = range.getBoundingClientRect();
+    analysisPopupButton.style.top = (rect.bottom + window.scrollY + 3) + 'px';
+    analysisPopupButton.style.left = (rect.left + window.scrollX) + 'px';
 
     analysisPopupButton.addEventListener('click', () => {
       const textToAnalyze = selectionObject.toString().trim();
