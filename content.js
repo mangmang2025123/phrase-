@@ -1,3 +1,4 @@
+console.log("CONTENT.JS: Script loaded/reloaded - v2.");
 // let lastHoveredElement = null; // Old listener, commented out
 let analysisDisplayIdCounter = 0; // To give unique IDs to analysis divs if needed - Keep for displayAnalysis
 
@@ -52,6 +53,7 @@ let analysisPopupButton = null; // To hold reference to our button
 const POPUP_BUTTON_ID = 'textAnalysisExtensionPopupButton'; // ID for the button
 
 document.addEventListener('mouseup', (event) => {
+  console.log("CONTENT.JS: Mouseup event triggered.");
   // Don't trigger if clicking on our own popup button
   if (event.target.id === POPUP_BUTTON_ID) {
     return;
@@ -59,9 +61,10 @@ document.addEventListener('mouseup', (event) => {
 
   currentSelection = document.getSelection();
   const selectedText = currentSelection.toString().trim();
+  console.log("CONTENT.JS: Selected text: '", selectedText, "'");
 
   if (selectedText) {
-    console.log("TEXT ANALYZER (New): Text selected - ", selectedText);
+    console.log("TEXT ANALYZER (New): Text selected - ", selectedText); // Keeping original log for context
     createOrShowAnalysisButton(currentSelection);
   } else {
     // If no text is selected, and the button exists, remove it.
@@ -73,8 +76,10 @@ document.addEventListener('mouseup', (event) => {
 });
 
 function createOrShowAnalysisButton(selectionObject) {
+  console.log("CONTENT.JS: createOrShowAnalysisButton called. Current analysisPopupButton state:", analysisPopupButton);
   if (!analysisPopupButton) {
     analysisPopupButton = document.createElement('button');
+    console.log("CONTENT.JS: Button element created locally:", analysisPopupButton);
     analysisPopupButton.id = POPUP_BUTTON_ID;
     analysisPopupButton.textContent = 'Analyze Selection';
     // Basic styling - fixed position for now
@@ -101,12 +106,19 @@ function createOrShowAnalysisButton(selectionObject) {
       }
       removeAnalysisButton(); // Remove button after click
     });
-    document.body.appendChild(analysisPopupButton);
+    console.log("CONTENT.JS: Attempting to append button:", analysisPopupButton);
+    try {
+      document.body.appendChild(analysisPopupButton);
+      console.log("CONTENT.JS: Button supposedly appended. Button in DOM by ID:", document.getElementById(POPUP_BUTTON_ID));
+    } catch (e) {
+      console.error("CONTENT.JS: Error appending button to body:", e);
+    }
   }
   // If button already exists, ensure it's visible or update its state if needed (not necessary for fixed pos)
 }
 
 function removeAnalysisButton() {
+  console.log("CONTENT.JS: removeAnalysisButton called.");
   if (analysisPopupButton) {
     analysisPopupButton.remove();
     analysisPopupButton = null;
