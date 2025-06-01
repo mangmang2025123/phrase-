@@ -9,6 +9,8 @@ let mouseDownTarget = null;
 let isStillConsideredMouseDown = false;
 const LONG_CLICK_DELAY = 500; // milliseconds
 const MOUSE_MOVE_THRESHOLD = 5; // pixels
+let longClickProcessed = false; // Flag to coordinate long-click vs selection
+
 
 // --- Selection Action Button Variables (from previous steps) ---
 let currentSelection = null;
@@ -28,6 +30,7 @@ document.addEventListener('mousedown', (event) => {
   mouseDownX = event.clientX;
   mouseDownY = event.clientY;
   isStillConsideredMouseDown = true;
+  longClickProcessed = false; // Reset flag on new mousedown
 
   if (longClickTimer) {
     clearTimeout(longClickTimer);
@@ -40,54 +43,60 @@ document.addEventListener('mousedown', (event) => {
 
   console.log("CONTENT.JS: mousedown (long-click candidate), longClickTimer started.", longClickTimer);
 
-  // Existing mousedown logic for clearing selection buttons (from previous version)
-  // This needs to be reconciled. For now, it runs after the long-click mousedown logic.
-  // If a long click is in progress, this might prematurely clear the timer if not careful.
-  // The `isStillConsideredMouseDown` might help, or the order of listeners.
-  // Using capture for long-click mousedown ensures it runs first.
   if (actionButtonsContainer &&
       event.target.id !== ACTION_BUTTON_CONTAINER_ID &&
       !actionButtonsContainer.contains(event.target)) {
       const selection = window.getSelection();
       if (selection.isCollapsed) {
-           removeActionButtons(); // This is for the T/S buttons
+           removeActionButtons();
       }
   }
-}, true); // Use capture phase for mousedown
+}, true);
 
 document.addEventListener('mouseup', (event) => {
-  // Long-click specific mouseup logic
-  if (event.button !== 0) { // Only left clicks
+  if (event.button !== 0) {
     return;
   }
 
   if (longClickTimer) {
     clearTimeout(longClickTimer);
     longClickTimer = null;
-    console.log("CONTENT.JS: mouseup (long-click), longClickTimer cleared.");
+    console.log("CONTENT.JS: mouseup (long-click timer cleared as it didn't fire).");
   }
-  isStillConsideredMouseDown = false;
 
-  // Existing mouseup logic for text selection (from previous version)
-  // This will run AFTER the long-click mouseup logic due to capture on long-click's mouseup.
-  console.log("CONTENT.JS: Mouseup event triggered (selection part).");
+  if (longClickProcessed) {
+    console.log("CONTENT.JS: mouseup after longClickProcessed. Resetting flags.");
+    isStillConsideredMouseDown = false;
+    longClickProcessed = false;
+    // Potentially do not proceed to selection logic if long click handled it.
+    // However, user might still want to select something else.
+    // For now, let selection logic proceed but be mindful of button state.
+    // removeActionButtons(); // Ensure long-click buttons are gone if user starts new selection.
+    // This might be too aggressive if the user wants to interact with long-click buttons.
+    // The buttons remove themselves on click.
+    return; // Stop further processing for this mouseup if it was part of a processed long-click.
+  }
+
+  isStillConsideredMouseDown = false; // Reset if it was a short click or mousemove cancelled.
+
+  console.log("CONTENT.JS: Mouseup event triggered (standard selection part).");
   if (event.target.tagName === 'BUTTON' && event.target.parentElement && event.target.parentElement.id === ACTION_BUTTON_CONTAINER_ID) {
     return;
   }
 
   currentSelection = document.getSelection();
   const selectedText = currentSelection.toString().trim();
-  console.log("CONTENT.JS: Selected text (selection part): '", selectedText, "'");
+  console.log("CONTENT.JS: Selected text (standard selection part): '", selectedText, "'");
 
   if (selectedText) {
-    console.log("TEXT ANALYZER (New): Text selected (selection part) - ", selectedText);
+    console.log("TEXT ANALYZER (New): Text selected (standard selection part) - ", selectedText);
     createOrShowActionButtons(currentSelection);
   } else {
     if(actionButtonsContainer) {
         removeActionButtons();
     }
   }
-}, true); // Use capture phase for long-click mouseup
+}, true);
 
 document.addEventListener('mousemove', (event) => {
   if (isStillConsideredMouseDown) {
@@ -103,22 +112,98 @@ document.addEventListener('mousemove', (event) => {
       isStillConsideredMouseDown = false;
     }
   }
-}, true); // Use capture phase
+}, true);
 
 function handleLongClickTrigger(initialTarget, initialX, initialY) {
   if (isStillConsideredMouseDown) {
     console.log("CONTENT.JS: Long-click successfully triggered on target:", initialTarget, "at x:", initialX, "y:", initialY);
+    let wordFound = false;
 
-    removeActionButtons(); // Hide T/S buttons if a selection previously showed them
+    if (document.caretRangeFromPoint) {
+      const range = document.caretRangeFromPoint(initialX, initialY);
+      if (range) {
+        try {
+          range.expand('word');
+          const word = range.toString().trim();
+          console.log("CONTENT.JS: Word identified by range.expand('word'): '", word, "' Range:", range);
 
-    // Placeholder for future logic:
-    // 1. Get word under cursor (initialX, initialY)
-    // 2. Get sentence context for that word
-    // 3. Call createOrShowActionButtons(...) with the new context / simulated selection
+          if (word) {
+            processLongClickedWord(word, range, initialTarget);
+            wordFound = true;
+          } else {
+            console.warn("CONTENT.JS: Long-click - range.expand('word') did not yield a word.");
+          }
+        } catch (e) {
+          console.warn("CONTENT.JS: Long-click - error during range.expand('word'):", e);
+        }
+      } else {
+        console.warn("CONTENT.JS: Long-click - document.caretRangeFromPoint returned no range.");
+      }
+    } else {
+      console.warn("CONTENT.JS: Long-click - document.caretRangeFromPoint is not supported in this browser/context.");
+    }
 
-    isStillConsideredMouseDown = false;
+    if (!wordFound) {
+      removeActionButtons();
+      isStillConsideredMouseDown = false;
+      longClickProcessed = false; // Ensure flag is reset if we don't proceed
+    }
+    // If wordFound, processLongClickedWord sets longClickProcessed = true.
+    // isStillConsideredMouseDown will be reset by the subsequent mouseup via longClickProcessed.
   }
   longClickTimer = null;
+}
+
+function processLongClickedWord(word, wordRange, clickTargetElement) {
+  console.log("CONTENT.JS: Processing long-clicked word:'", word, "' with range:", wordRange, "and initial target:", clickTargetElement);
+
+  if (!word || !wordRange) {
+    console.warn("CONTENT.JS: processLongClickedWord - Invalid word or range provided.");
+    removeActionButtons();
+    isStillConsideredMouseDown = false;
+    longClickProcessed = false;
+    return;
+  }
+
+  const selection = window.getSelection();
+  if (!selection) {
+    console.error("CONTENT.JS: processLongClickedWord - window.getSelection() is not available or returned null.");
+    removeActionButtons();
+    isStillConsideredMouseDown = false;
+    longClickProcessed = false;
+    return;
+  }
+
+  const originalRanges = [];
+  for (let i = 0; i < selection.rangeCount; i++) {
+    originalRanges.push(selection.getRangeAt(i).cloneRange());
+  }
+  selection.removeAllRanges();
+  selection.addRange(wordRange.cloneRange()); // Use a clone to avoid modifying the original wordRange if needed later
+
+  const context = getSentenceContext(selection);
+
+  selection.removeAllRanges();
+  originalRanges.forEach(originalRange => {
+    selection.addRange(originalRange);
+  });
+
+  if (context && context.sentence && context.anchorElement) {
+    console.log("CONTENT.JS: Long-click - Context found:", context);
+    removeActionButtons();
+
+    selection.removeAllRanges(); // Ensure selection is clean before adding the word range for button positioning
+    selection.addRange(wordRange.cloneRange()); // Add cloned wordRange for createOrShowActionButtons
+
+    createOrShowActionButtons(selection);
+
+    longClickProcessed = true;
+  } else {
+    console.warn("CONTENT.JS: Long-click - Could not get sentence context for the identified word:", word);
+    removeActionButtons();
+    isStillConsideredMouseDown = false;
+    longClickProcessed = false;
+  }
 }
 
 
@@ -170,6 +255,12 @@ function createOrShowActionButtons(selectionObject) {
     }
   }
 
+  // Ensure selectionObject is valid and has ranges before trying to get a rect
+  if (!selectionObject || selectionObject.rangeCount === 0) {
+    console.warn("CONTENT.JS: createOrShowActionButtons called with no valid selection/range for positioning.");
+    removeActionButtons(); // Remove if we can't position
+    return;
+  }
   const range = selectionObject.getRangeAt(0);
   const rect = range.getBoundingClientRect();
   actionButtonsContainer.style.top = (rect.bottom + window.scrollY + 3) + 'px';
@@ -179,8 +270,47 @@ function createOrShowActionButtons(selectionObject) {
 
 function handleActionButtonClick(selectionForContext, actionType) {
   console.log(`CONTENT.JS: ${actionType} action triggered.`);
-  if (selectionForContext && selectionForContext.toString().trim()) {
-    const context = getSentenceContext(selectionForContext);
+  // Use the current window selection at the moment of click,
+  // or the selectionForContext if it's guaranteed to be the relevant one (e.g., for long-click)
+  let activeSelection = window.getSelection();
+  if (selectionForContext && selectionForContext.rangeCount > 0 && selectionForContext.toString().trim() !== "") {
+      // If selectionForContext (passed from long-click's temporary selection) is valid, use it.
+      // This is important because window.getSelection() might have changed if user clicked elsewhere slightly
+      // before the button click event fired, or if restoring original selection cleared it.
+      activeSelection = selectionForContext;
+       console.log("CONTENT.JS: Using selectionForContext for API call", activeSelection.toString());
+  } else {
+      console.log("CONTENT.JS: Using current window.getSelection() for API call", activeSelection.toString());
+  }
+
+
+  if (activeSelection && activeSelection.toString().trim()) {
+    // Important: getSentenceContext itself uses window.getSelection().
+    // So, we must ensure the 'activeSelection' (which is the word from long-click, or user's selection)
+    // is the one window.getSelection() will return when getSentenceContext is called.
+    const tempRanges = [];
+    const currentGlobalSelection = window.getSelection();
+    for (let i = 0; i < currentGlobalSelection.rangeCount; i++) {
+        tempRanges.push(currentGlobalSelection.getRangeAt(i).cloneRange());
+    }
+    currentGlobalSelection.removeAllRanges();
+    // Add the range from activeSelection (which should be the word range for long-click, or user's selection)
+    if (activeSelection.rangeCount > 0) {
+        currentGlobalSelection.addRange(activeSelection.getRangeAt(0).cloneRange());
+    } else {
+        console.warn("CONTENT.JS: activeSelection had no range to add for getSentenceContext.");
+        // Restore original global selection and bail
+        tempRanges.forEach(r => currentGlobalSelection.addRange(r));
+        removeActionButtons();
+        return;
+    }
+
+    const context = getSentenceContext(currentGlobalSelection);
+
+    // Restore previous global selection state
+    currentGlobalSelection.removeAllRanges();
+    tempRanges.forEach(r => currentGlobalSelection.addRange(r));
+
 
     if (context && context.selectedText && context.anchorElement) {
       console.log("CONTENT.JS: Sending to background for action:", actionType, { sentence: context.sentence, selectedText: context.selectedText });
@@ -189,7 +319,7 @@ function handleActionButtonClick(selectionForContext, actionType) {
         {
           action: actionType,
           sentence: context.sentence,
-          selectedText: context.selectedText
+          selectedText: context.selectedText // This selectedText is from getSentenceContext
         },
         (response) => {
           if (chrome.runtime.lastError) {
@@ -272,7 +402,7 @@ function getSentenceContext(selectionObject) {
 
   let startIndexInFullText = fullText.indexOf(selectedText);
 
-  if (startIndexInFullText === -1 && range.startContainer.parentElement) { // Added null check for parentElement
+  if (startIndexInFullText === -1 && range.startContainer.parentElement) {
       const directParentText = range.startContainer.parentElement.textContent || "";
       startIndexInFullText = directParentText.indexOf(selectedText);
   }
@@ -332,30 +462,28 @@ function displayAnalysis(originalElement, analysisText, isError) {
   analysisDisplayIdCounter++;
   const uniqueId = `text_analyzer_ai_helper_result_${analysisDisplayIdCounter}`;
   analysisDiv.id = uniqueId;
-  analysisDiv.style.position = 'absolute'; // Make analysis display absolute too
-  analysisDiv.style.zIndex = '100000'; // Higher than action buttons
+  analysisDiv.style.position = 'absolute';
+  analysisDiv.style.zIndex = '100000';
   analysisDiv.style.marginTop = '5px';
-  analysisDiv.style.padding = '10px'; // Increased padding
-  analysisDiv.style.border = '1px solid #ccc'; // More prominent border
-  analysisDiv.style.backgroundColor = isError ? '#fff0f0' : '#f9f9f9'; // Error color
+  analysisDiv.style.padding = '10px';
+  analysisDiv.style.border = '1px solid #ccc';
+  analysisDiv.style.backgroundColor = isError ? '#fff0f0' : '#f9f9f9';
   analysisDiv.style.fontSize = '0.9em';
   analysisDiv.style.fontFamily = 'sans-serif';
   analysisDiv.style.color = isError ? 'red' : '#333';
   analysisDiv.style.textAlign = 'left';
   analysisDiv.style.whiteSpace = 'pre-wrap';
-  analysisDiv.style.boxShadow = '0px 2px 5px rgba(0,0,0,0.1)'; // Add shadow
-  analysisDiv.style.maxWidth = '400px'; // Max width for readability
+  analysisDiv.style.boxShadow = '0px 2px 5px rgba(0,0,0,0.1)';
+  analysisDiv.style.maxWidth = '400px';
 
   analysisDiv.textContent = analysisText;
 
-  // Position analysis div below the originalElement (which is anchorElement from context)
   const anchorRect = originalElement.getBoundingClientRect();
   analysisDiv.style.top = (anchorRect.bottom + window.scrollY + 5) + 'px';
   analysisDiv.style.left = (anchorRect.left + window.scrollX) + 'px';
 
-
   const closeButton = document.createElement('button');
-  closeButton.textContent = 'X'; // Simpler close button
+  closeButton.textContent = 'X';
   closeButton.style.position = 'absolute';
   closeButton.style.top = '3px';
   closeButton.style.right = '3px';
@@ -365,14 +493,14 @@ function displayAnalysis(originalElement, analysisText, isError) {
   closeButton.style.border = '1px solid #ccc';
   closeButton.style.borderRadius = '50%';
   closeButton.style.cursor = 'pointer';
-  closeButton.style.lineHeight = '1'; // Ensure X is centered if padding makes it tall
+  closeButton.style.lineHeight = '1';
 
   closeButton.onclick = (e) => {
-    e.stopPropagation(); // Prevent click from bubbling to other listeners
+    e.stopPropagation();
     analysisDiv.remove();
   };
   analysisDiv.appendChild(closeButton);
 
-  document.body.appendChild(analysisDiv); // Append to body for absolute positioning freedom
+  document.body.appendChild(analysisDiv);
 }
 // console.log("Text Analyzer AI Helper content script loaded.");
