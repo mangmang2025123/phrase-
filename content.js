@@ -100,16 +100,54 @@ function createOrShowAnalysisButton(selectionObject) {
     analysisPopupButton.style.left = (rect.left + window.scrollX) + 'px';
 
     analysisPopupButton.addEventListener('click', () => {
-      const textToAnalyze = selectionObject.toString().trim();
-      if (textToAnalyze) {
-        // For this phase, just log. Later, this will get sentence & send to background.js
-        console.log("TEXT ANALYZER (New): Analyze button clicked for selection: ", textToAnalyze);
-        console.log("TEXT ANALYZER (New): Sentence detection and API call not implemented in this step.");
-        // Placeholder for where sentence detection and message sending will go:
-        // const sentence = getSentenceAroundSelection(selectionObject); // Future function
-        // chrome.runtime.sendMessage({ action: "analyzeText", sentence: sentence, selectedText: textToAnalyze }, response => { ... });
+      // Inside analysisPopupButton.addEventListener('click', () => { ... });
+
+      if (currentSelection && currentSelection.toString().trim()) {
+        const context = getSentenceContext(currentSelection);
+
+        if (context && context.sentence && context.selectedText && context.anchorElement) {
+          console.log("CONTENT.JS: Sending to background for analysis:", { sentence: context.sentence, selectedText: context.selectedText });
+
+          chrome.runtime.sendMessage(
+            {
+              action: "analyzeText", // This is the action background.js expects
+              sentence: context.sentence,
+              selectedText: context.selectedText
+            },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                console.error("CONTENT.JS: Error sending message to background:", chrome.runtime.lastError.message);
+                // Optionally, display this error using displayAnalysis
+                // displayAnalysis(context.anchorElement, `Error sending message: ${chrome.runtime.lastError.message}`, true);
+                return;
+              }
+              if (response) {
+                if (response.error) {
+                  console.error("CONTENT.JS: Error from background script:", response.error);
+                  displayAnalysis(context.anchorElement, `Error: ${response.error}`, true);
+                } else if (response.analysis) {
+                  console.log("CONTENT.JS: Analysis received from background.");
+                  displayAnalysis(context.anchorElement, response.analysis, false);
+                } else {
+                  console.warn("CONTENT.JS: Received empty or unexpected response from background.");
+                   displayAnalysis(context.anchorElement, "Received an empty or unexpected response from the analysis service.", true);
+                }
+              } else {
+                   console.warn("CONTENT.JS: No response from background script.");
+                   displayAnalysis(context.anchorElement, "No response received from the analysis service.", true);
+              }
+            }
+          );
+        } else {
+          console.warn("CONTENT.JS: Could not get valid sentence context for analysis.");
+          // Optionally inform the user if context is invalid
+          // alert("Could not determine the context of the selected text.");
+        }
+      } else {
+        console.warn("CONTENT.JS: No valid selection found when 'T' button was clicked.");
       }
-      removeAnalysisButton(); // Remove button after click
+
+      removeAnalysisButton(); // This should already be here, ensures button is removed after click.
     });
     console.log("CONTENT.JS: Attempting to append button:", analysisPopupButton);
     try {
@@ -141,6 +179,129 @@ document.addEventListener('mousedown', function(event) {
         }
     }
 }, true); // Use capture phase to catch clicks early
+
+
+function getSentenceContext(selectionObject) {
+  if (!selectionObject || selectionObject.rangeCount === 0) {
+    console.warn("getSentenceContext: Invalid selection object or no range.");
+    return null;
+  }
+
+  const selectedText = selectionObject.toString().trim();
+  if (!selectedText) {
+    // This case should ideally be handled by the caller (mouseup listener)
+    // which shouldn't call getSentenceContext if selectedText is empty.
+    console.warn("getSentenceContext: Selected text is empty.");
+    return { sentence: "", selectedText: "", anchorElement: document.body };
+  }
+
+  const range = selectionObject.getRangeAt(0);
+  let commonAncestor = range.commonAncestorContainer;
+
+  // Determine a suitable anchorElement for text content and later for displaying analysis
+  let anchorElement = commonAncestor;
+  if (anchorElement.nodeType === Node.TEXT_NODE) {
+    anchorElement = anchorElement.parentElement;
+  }
+
+  // Traverse up to find a more significant block-level element or a common container like P, DIV, ARTICLE, etc.
+  let currentElementForContext = anchorElement;
+  while (currentElementForContext && currentElementForContext !== document.body) {
+    const displayStyle = window.getComputedStyle(currentElementForContext).display;
+    const tagName = currentElementForContext.tagName.toUpperCase();
+    if (['BLOCK', 'LIST-ITEM', 'TABLE-CELL'].includes(displayStyle.toUpperCase()) ||
+        ['P', 'DIV', 'LI', 'TD', 'ARTICLE', 'SECTION', 'ASIDE', 'MAIN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(tagName)) {
+      anchorElement = currentElementForContext; // Found a good block-level container
+      break;
+    }
+    if (!currentElementForContext.parentElement) break; // Should not happen before hitting body
+    currentElementForContext = currentElementForContext.parentElement;
+  }
+
+
+  const fullText = anchorElement.textContent || "";
+  if (!fullText) {
+    console.warn("getSentenceContext: Anchor element has no text content.", anchorElement);
+    // Fallback: sentence is just selected text, anchor is what we found
+    return { sentence: selectedText, selectedText: selectedText, anchorElement: anchorElement };
+  }
+
+  let startIndexInFullText = fullText.indexOf(selectedText);
+
+  // If selectedText is not found directly (e.g. due to normalization or complex structure),
+  // try to find it within a more limited scope around the selection's direct parent.
+  if (startIndexInFullText === -1 && range.startContainer.textContent) {
+      const directParentText = range.startContainer.parentElement.textContent || "";
+      startIndexInFullText = directParentText.indexOf(selectedText);
+      if (startIndexInFullText !== -1) {
+          // Found in direct parent, use this as fullText for sentence detection
+          // This is a heuristic and might not always be the "fullest" context but better than nothing.
+          // fullText = directParentText; // This line was commented as it made it worse in testing.
+          // For now, if not found in broader anchor, this will lead to fallback.
+      } else {
+         // Still not found, prepare for fallback
+      }
+  }
+
+
+  if (startIndexInFullText === -1) {
+    console.warn("getSentenceContext: Selected text not reliably found in anchor's textContent. Using selected text as sentence.", anchorElement, "Full text checked:", fullText.substring(0, 200));
+    return { sentence: selectedText, selectedText: selectedText, anchorElement: anchorElement };
+  }
+
+  const endIndexInFullText = startIndexInFullText + selectedText.length;
+
+  // Simplified sentence terminators: '.', '?', '!'
+  // More refined regex: /(?<!(?:Mr|Mrs|Ms|Dr|Sr|Jr|Inc|Ltd|Co|e\.g|i\.e))\s*[.?!](?!\s*\w)/g
+  // Simpler for now:
+  const sentenceEndChars = ".?!";
+
+  let sentenceStartIndex = startIndexInFullText;
+  while (sentenceStartIndex > 0) {
+    const charBefore = fullText[sentenceStartIndex - 1];
+    if (sentenceEndChars.includes(charBefore) && (fullText[sentenceStartIndex] === ' ' || fullText[sentenceStartIndex] === '\n')) { // Check for space/newline after terminator
+      break;
+    }
+    sentenceStartIndex--;
+  }
+   // Adjust if loop ended at 0 but first char isn't start of sentence (e.g. space)
+  if (sentenceStartIndex > 0 && fullText[sentenceStartIndex -1] !== ' ' && !sentenceEndChars.includes(fullText[sentenceStartIndex-1])) {
+      // This means we might be in middle of word or sentence start.
+      // No, if sentenceStartIndex is > 0, it means fullText[sentenceStartIndex-1] was a terminator or loop finished.
+      // If fullText[sentenceStartIndex] is a space, trim it.
+  }
+
+
+  let sentenceEndIndex = endIndexInFullText;
+  while (sentenceEndIndex < fullText.length) {
+    const charAt = fullText[sentenceEndIndex];
+    if (sentenceEndChars.includes(charAt)) {
+      sentenceEndIndex++; // include the terminator
+      break;
+    }
+    sentenceEndIndex++;
+  }
+
+  let sentence = fullText.substring(sentenceStartIndex, sentenceEndIndex).trim();
+
+  // Fallback / Sanity check: If derived sentence is huge or doesn't contain selected text, use a simpler context.
+  // This can happen if the selected text itself contains sentence-like structures or if block element is too large.
+  if (!sentence.includes(selectedText) || sentence.length > selectedText.length + 500) { // Max 500 chars of context
+    console.warn("getSentenceContext: Derived sentence too long or does not contain selected text. Using a smaller local context.");
+    // Create a smaller context around the selection
+    const contextRadius = 150; // Characters before and after
+    const localStart = Math.max(0, startIndexInFullText - contextRadius);
+    const localEnd = Math.min(fullText.length, endIndexInFullText + contextRadius);
+    sentence = fullText.substring(localStart, localEnd).trim();
+    // If even this doesn't contain selectedText (should be rare), fallback to just selectedText
+    if (!sentence.includes(selectedText)) {
+        sentence = selectedText;
+    }
+  }
+
+  console.log("CONTENT.JS: getSentenceContext: ", { sentence: sentence, selectedText: selectedText, anchorElement: anchorElement });
+  return { sentence, selectedText, anchorElement };
+}
 
 
 // displayAnalysis function remains for future use when API calls are re-integrated
