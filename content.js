@@ -2,60 +2,21 @@ console.log("CONTENT.JS: Script loaded/reloaded - v2.");
 // let lastHoveredElement = null; // Old listener, commented out
 let analysisDisplayIdCounter = 0; // To give unique IDs to analysis divs if needed - Keep for displayAnalysis
 
-// Track the element currently under the mouse
-// document.addEventListener('mouseover', (event) => {
-//   lastHoveredElement = event.target;
-// });
-
-// Listen for the hotkey - Old listener, commented out
-// document.addEventListener('keydown', (event) => {
-//   if (event.altKey && event.key === 'a') {
-//     event.preventDefault(); // Prevent any default browser action for 'alt+a'
-
-//     if (lastHoveredElement) {
-//       const textContent = lastHoveredElement.textContent?.trim();
-
-//       if (textContent) {
-//         // console.log("Hotkey pressed. Text to analyze:", textContent); // Optional: original console log
-//         const originalElementForAnalysis = lastHoveredElement;
-
-//         chrome.runtime.sendMessage({ action: "analyzeText", text: textContent }, (response) => { // OLD: sends only 'text'
-//           if (chrome.runtime.lastError) {
-//             const LCRmessage = `Failed to communicate with the extension's background script: ${chrome.runtime.lastError.message}. If the extension was just installed or updated, try reloading the page.`;
-//             console.error("Error sending message to background script:", LCRmessage);
-//             displayAnalysis(originalElementForAnalysis, `Error: ${LCRmessage}`, true);
-//             return;
-//           }
-
-//           if (response) {
-//             if (response.error) {
-//               console.error("Error from background script:", response.error);
-//               displayAnalysis(originalElementForAnalysis, `Error: ${response.error}`, true);
-//             } else if (response.analysis) {
-//               displayAnalysis(originalElementForAnalysis, response.analysis, false);
-//             }
-//           } else {
-//             console.error("No response from background script or response was undefined.");
-//             displayAnalysis(originalElementForAnalysis, "Error: No response from analysis service.", true);
-//           }
-//         });
-//       } else {
-//         // console.log("Hotkey pressed, but no text content found in the hovered element.");
-//       }
-//     } else {
-//       // console.log("Hotkey pressed, but no element was hovered.");
-//     }
-//   }
-// });
+// Old listeners commented out (from previous steps)
+// document.addEventListener('mouseover', ...);
+// document.addEventListener('keydown', ...);
 
 let currentSelection = null; // To store the current Selection object
-let analysisPopupButton = null; // To hold reference to our button
-const POPUP_BUTTON_ID = 'textAnalysisExtensionPopupButton'; // ID for the button
+// let analysisPopupButton = null; // Old single button reference
+// const POPUP_BUTTON_ID = 'textAnalysisExtensionPopupButton'; // Old ID
+
+let actionButtonsContainer = null; // Will hold both T and S buttons
+const ACTION_BUTTON_CONTAINER_ID = 'textAnalysisExtensionActionContainer';
 
 document.addEventListener('mouseup', (event) => {
   console.log("CONTENT.JS: Mouseup event triggered.");
-  // Don't trigger if clicking on our own popup button
-  if (event.target.id === POPUP_BUTTON_ID) {
+  // If the click was on one of our action buttons, let their listeners handle it.
+  if (event.target.tagName === 'BUTTON' && event.target.parentElement && event.target.parentElement.id === ACTION_BUTTON_CONTAINER_ID) {
     return;
   }
 
@@ -64,121 +25,135 @@ document.addEventListener('mouseup', (event) => {
   console.log("CONTENT.JS: Selected text: '", selectedText, "'");
 
   if (selectedText) {
-    console.log("TEXT ANALYZER (New): Text selected - ", selectedText); // Keeping original log for context
-    createOrShowAnalysisButton(currentSelection);
+    console.log("TEXT ANALYZER (New): Text selected - ", selectedText);
+    createOrShowActionButtons(currentSelection);
   } else {
-    // If no text is selected, and the button exists, remove it.
-    // This handles cases where a selection is cleared without a mousedown (e.g., programmatic changes, some browser actions)
-    if(analysisPopupButton) {
-        removeAnalysisButton();
+    if(actionButtonsContainer) { // If no text selected, remove any existing button container
+        removeActionButtons();
     }
   }
 });
 
-function createOrShowAnalysisButton(selectionObject) {
-  console.log("CONTENT.JS: createOrShowAnalysisButton called. Current analysisPopupButton state:", analysisPopupButton);
-  if (!analysisPopupButton) {
-    analysisPopupButton = document.createElement('button');
-    console.log("CONTENT.JS: Button element created locally:", analysisPopupButton);
-    analysisPopupButton.id = POPUP_BUTTON_ID;
-    analysisPopupButton.textContent = 'T';
+function createOrShowActionButtons(selectionObject) {
+  console.log("CONTENT.JS: createOrShowActionButtons called. Current container state:", actionButtonsContainer);
+  if (!actionButtonsContainer) {
+    actionButtonsContainer = document.createElement('div');
+    actionButtonsContainer.id = ACTION_BUTTON_CONTAINER_ID;
+    actionButtonsContainer.style.position = 'absolute';
+    actionButtonsContainer.style.zIndex = '99999';
+    actionButtonsContainer.style.display = 'flex'; // Arrange buttons in a row
+    actionButtonsContainer.style.gap = '3px'; // Space between buttons
 
-    // Styling for dynamic positioning and smaller size
-    analysisPopupButton.style.position = 'absolute';
-    analysisPopupButton.style.zIndex = '99999'; // Ensure it's on top
-    analysisPopupButton.style.padding = '5px 10px';
-    analysisPopupButton.style.fontSize = '0.85em';
-    analysisPopupButton.style.backgroundColor = '#4CAF50'; // Green
-    analysisPopupButton.style.color = 'white';
-    analysisPopupButton.style.border = 'none';
-    analysisPopupButton.style.borderRadius = '4px';
-    analysisPopupButton.style.cursor = 'pointer';
+    // Create 'T' button
+    const tButton = document.createElement('button');
+    tButton.textContent = 'T';
+    tButton.style.padding = '5px 8px';
+    tButton.style.fontSize = '0.85em';
+    tButton.style.backgroundColor = '#4CAF50';
+    tButton.style.color = 'white';
+    tButton.style.border = '1px solid #388E3C';
+    tButton.style.borderRadius = '3px';
+    tButton.style.cursor = 'pointer';
+    tButton.addEventListener('click', () => handleActionButtonClick(currentSelection, "explainSelectionInSentence"));
+    actionButtonsContainer.appendChild(tButton);
 
-    const range = selectionObject.getRangeAt(0); // Get the first range of the selection
-    const rect = range.getBoundingClientRect();
-    analysisPopupButton.style.top = (rect.bottom + window.scrollY + 3) + 'px';
-    analysisPopupButton.style.left = (rect.left + window.scrollX) + 'px';
+    // Create 'S' button
+    const sButton = document.createElement('button');
+    sButton.textContent = 'S';
+    sButton.style.padding = '5px 8px';
+    sButton.style.fontSize = '0.85em';
+    sButton.style.backgroundColor = '#03A9F4';
+    sButton.style.color = 'white';
+    sButton.style.border = '1px solid #0288D1';
+    sButton.style.borderRadius = '3px';
+    sButton.style.cursor = 'pointer';
+    sButton.addEventListener('click', () => handleActionButtonClick(currentSelection, "analyzeWordForms"));
+    actionButtonsContainer.appendChild(sButton);
 
-    analysisPopupButton.addEventListener('click', () => {
-      // Inside analysisPopupButton.addEventListener('click', () => { ... });
+    console.log("CONTENT.JS: Action buttons container created with T and S buttons.");
 
-      if (currentSelection && currentSelection.toString().trim()) {
-        const context = getSentenceContext(currentSelection);
-
-        if (context && context.sentence && context.selectedText && context.anchorElement) {
-          console.log("CONTENT.JS: Sending to background for analysis:", { sentence: context.sentence, selectedText: context.selectedText });
-
-          chrome.runtime.sendMessage(
-            {
-              action: "analyzeText", // This is the action background.js expects
-              sentence: context.sentence,
-              selectedText: context.selectedText
-            },
-            (response) => {
-              if (chrome.runtime.lastError) {
-                console.error("CONTENT.JS: Error sending message to background:", chrome.runtime.lastError.message);
-                // Optionally, display this error using displayAnalysis
-                // displayAnalysis(context.anchorElement, `Error sending message: ${chrome.runtime.lastError.message}`, true);
-                return;
-              }
-              if (response) {
-                if (response.error) {
-                  console.error("CONTENT.JS: Error from background script:", response.error);
-                  displayAnalysis(context.anchorElement, `Error: ${response.error}`, true);
-                } else if (response.analysis) {
-                  console.log("CONTENT.JS: Analysis received from background.");
-                  displayAnalysis(context.anchorElement, response.analysis, false);
-                } else {
-                  console.warn("CONTENT.JS: Received empty or unexpected response from background.");
-                   displayAnalysis(context.anchorElement, "Received an empty or unexpected response from the analysis service.", true);
-                }
-              } else {
-                   console.warn("CONTENT.JS: No response from background script.");
-                   displayAnalysis(context.anchorElement, "No response received from the analysis service.", true);
-              }
-            }
-          );
-        } else {
-          console.warn("CONTENT.JS: Could not get valid sentence context for analysis.");
-          // Optionally inform the user if context is invalid
-          // alert("Could not determine the context of the selected text.");
-        }
-      } else {
-        console.warn("CONTENT.JS: No valid selection found when 'T' button was clicked.");
-      }
-
-      removeAnalysisButton(); // This should already be here, ensures button is removed after click.
-    });
-    console.log("CONTENT.JS: Attempting to append button:", analysisPopupButton);
     try {
-      document.body.appendChild(analysisPopupButton);
-      console.log("CONTENT.JS: Button supposedly appended. Button in DOM by ID:", document.getElementById(POPUP_BUTTON_ID));
+      document.body.appendChild(actionButtonsContainer);
+      console.log("CONTENT.JS: Action buttons container appended to body.");
     } catch (e) {
-      console.error("CONTENT.JS: Error appending button to body:", e);
+      console.error("CONTENT.JS: Error appending action buttons container to body:", e);
+      actionButtonsContainer = null; // Reset if append failed
+      return;
     }
   }
-  // If button already exists, ensure it's visible or update its state if needed (not necessary for fixed pos)
+
+  // Positioning logic (applies to the container)
+  const range = selectionObject.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  actionButtonsContainer.style.top = (rect.bottom + window.scrollY + 3) + 'px';
+  actionButtonsContainer.style.left = (rect.left + window.scrollX) + 'px';
+  console.log("CONTENT.JS: Action buttons container positioned.");
 }
 
-function removeAnalysisButton() {
-  console.log("CONTENT.JS: removeAnalysisButton called.");
-  if (analysisPopupButton) {
-    analysisPopupButton.remove();
-    analysisPopupButton = null;
+function handleActionButtonClick(selectionForContext, actionType) {
+  console.log(`CONTENT.JS: ${actionType} action triggered.`);
+  if (selectionForContext && selectionForContext.toString().trim()) {
+    const context = getSentenceContext(selectionForContext); // Existing function
+
+    if (context && context.selectedText && context.anchorElement) {
+      console.log("CONTENT.JS: Sending to background for action:", actionType, { sentence: context.sentence, selectedText: context.selectedText });
+
+      chrome.runtime.sendMessage(
+        {
+          action: actionType,
+          sentence: context.sentence,
+          selectedText: context.selectedText
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(`CONTENT.JS: Error sending message for ${actionType}:`, chrome.runtime.lastError.message);
+            displayAnalysis(context.anchorElement, `Error: ${chrome.runtime.lastError.message}`, true);
+            return;
+          }
+          if (response) {
+            if (response.error) {
+              console.error(`CONTENT.JS: Error from background for ${actionType}:`, response.error);
+              displayAnalysis(context.anchorElement, `Error: ${response.error}`, true);
+            } else if (response.analysis) {
+              console.log(`CONTENT.JS: Analysis received from background for ${actionType}.`);
+              displayAnalysis(context.anchorElement, response.analysis, false);
+            } else {
+              console.warn(`CONTENT.JS: Received empty/unexpected response for ${actionType}.`);
+              displayAnalysis(context.anchorElement, "Received an empty or unexpected response.", true);
+            }
+          } else {
+            console.warn(`CONTENT.JS: No response from background for ${actionType}.`);
+            displayAnalysis(context.anchorElement, "No response received from the analysis service.", true);
+          }
+        }
+      );
+    } else {
+      console.warn("CONTENT.JS: Could not get valid sentence context for action:", actionType);
+    }
+  } else {
+    console.warn(`CONTENT.JS: No valid selection found when ${actionType} was triggered.`);
+  }
+  removeActionButtons(); // Remove container (and thus both buttons)
+}
+
+function removeActionButtons() {
+  console.log("CONTENT.JS: removeActionButtons called.");
+  if (actionButtonsContainer) {
+    actionButtonsContainer.remove();
+    actionButtonsContainer = null;
   }
 }
 
 document.addEventListener('mousedown', function(event) {
-    // If the click is not on the selection itself and not on our button,
-    // and a button exists, remove it.
-    // This helps hide the button if the user clicks away from the selection.
-    if (analysisPopupButton && event.target.id !== POPUP_BUTTON_ID) {
+    if (actionButtonsContainer &&
+        event.target.id !== ACTION_BUTTON_CONTAINER_ID &&
+        !actionButtonsContainer.contains(event.target)) {
         const selection = window.getSelection();
-        if (selection.isCollapsed) { // isCollapsed means no selection or just a caret
-             removeAnalysisButton();
+        if (selection.isCollapsed) {
+             removeActionButtons();
         }
     }
-}, true); // Use capture phase to catch clicks early
+}, true);
 
 
 function getSentenceContext(selectionObject) {
@@ -189,8 +164,6 @@ function getSentenceContext(selectionObject) {
 
   const selectedText = selectionObject.toString().trim();
   if (!selectedText) {
-    // This case should ideally be handled by the caller (mouseup listener)
-    // which shouldn't call getSentenceContext if selectedText is empty.
     console.warn("getSentenceContext: Selected text is empty.");
     return { sentence: "", selectedText: "", anchorElement: document.body };
   }
@@ -198,51 +171,36 @@ function getSentenceContext(selectionObject) {
   const range = selectionObject.getRangeAt(0);
   let commonAncestor = range.commonAncestorContainer;
 
-  // Determine a suitable anchorElement for text content and later for displaying analysis
   let anchorElement = commonAncestor;
   if (anchorElement.nodeType === Node.TEXT_NODE) {
     anchorElement = anchorElement.parentElement;
   }
 
-  // Traverse up to find a more significant block-level element or a common container like P, DIV, ARTICLE, etc.
   let currentElementForContext = anchorElement;
   while (currentElementForContext && currentElementForContext !== document.body) {
     const displayStyle = window.getComputedStyle(currentElementForContext).display;
     const tagName = currentElementForContext.tagName.toUpperCase();
     if (['BLOCK', 'LIST-ITEM', 'TABLE-CELL'].includes(displayStyle.toUpperCase()) ||
         ['P', 'DIV', 'LI', 'TD', 'ARTICLE', 'SECTION', 'ASIDE', 'MAIN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(tagName)) {
-      anchorElement = currentElementForContext; // Found a good block-level container
+      anchorElement = currentElementForContext;
       break;
     }
-    if (!currentElementForContext.parentElement) break; // Should not happen before hitting body
+    if (!currentElementForContext.parentElement) break;
     currentElementForContext = currentElementForContext.parentElement;
   }
-
 
   const fullText = anchorElement.textContent || "";
   if (!fullText) {
     console.warn("getSentenceContext: Anchor element has no text content.", anchorElement);
-    // Fallback: sentence is just selected text, anchor is what we found
     return { sentence: selectedText, selectedText: selectedText, anchorElement: anchorElement };
   }
 
   let startIndexInFullText = fullText.indexOf(selectedText);
 
-  // If selectedText is not found directly (e.g. due to normalization or complex structure),
-  // try to find it within a more limited scope around the selection's direct parent.
   if (startIndexInFullText === -1 && range.startContainer.textContent) {
       const directParentText = range.startContainer.parentElement.textContent || "";
       startIndexInFullText = directParentText.indexOf(selectedText);
-      if (startIndexInFullText !== -1) {
-          // Found in direct parent, use this as fullText for sentence detection
-          // This is a heuristic and might not always be the "fullest" context but better than nothing.
-          // fullText = directParentText; // This line was commented as it made it worse in testing.
-          // For now, if not found in broader anchor, this will lead to fallback.
-      } else {
-         // Still not found, prepare for fallback
-      }
   }
-
 
   if (startIndexInFullText === -1) {
     console.warn("getSentenceContext: Selected text not reliably found in anchor's textContent. Using selected text as sentence.", anchorElement, "Full text checked:", fullText.substring(0, 200));
@@ -250,33 +208,22 @@ function getSentenceContext(selectionObject) {
   }
 
   const endIndexInFullText = startIndexInFullText + selectedText.length;
-
-  // Simplified sentence terminators: '.', '?', '!'
-  // More refined regex: /(?<!(?:Mr|Mrs|Ms|Dr|Sr|Jr|Inc|Ltd|Co|e\.g|i\.e))\s*[.?!](?!\s*\w)/g
-  // Simpler for now:
   const sentenceEndChars = ".?!";
-
   let sentenceStartIndex = startIndexInFullText;
+
   while (sentenceStartIndex > 0) {
     const charBefore = fullText[sentenceStartIndex - 1];
-    if (sentenceEndChars.includes(charBefore) && (fullText[sentenceStartIndex] === ' ' || fullText[sentenceStartIndex] === '\n')) { // Check for space/newline after terminator
+    if (sentenceEndChars.includes(charBefore) && (fullText[sentenceStartIndex] === ' ' || fullText[sentenceStartIndex] === '\n')) {
       break;
     }
     sentenceStartIndex--;
   }
-   // Adjust if loop ended at 0 but first char isn't start of sentence (e.g. space)
-  if (sentenceStartIndex > 0 && fullText[sentenceStartIndex -1] !== ' ' && !sentenceEndChars.includes(fullText[sentenceStartIndex-1])) {
-      // This means we might be in middle of word or sentence start.
-      // No, if sentenceStartIndex is > 0, it means fullText[sentenceStartIndex-1] was a terminator or loop finished.
-      // If fullText[sentenceStartIndex] is a space, trim it.
-  }
-
 
   let sentenceEndIndex = endIndexInFullText;
   while (sentenceEndIndex < fullText.length) {
     const charAt = fullText[sentenceEndIndex];
     if (sentenceEndChars.includes(charAt)) {
-      sentenceEndIndex++; // include the terminator
+      sentenceEndIndex++;
       break;
     }
     sentenceEndIndex++;
@@ -284,16 +231,14 @@ function getSentenceContext(selectionObject) {
 
   let sentence = fullText.substring(sentenceStartIndex, sentenceEndIndex).trim();
 
-  // Fallback / Sanity check: If derived sentence is huge or doesn't contain selected text, use a simpler context.
-  // This can happen if the selected text itself contains sentence-like structures or if block element is too large.
-  if (!sentence.includes(selectedText) || sentence.length > selectedText.length + 500) { // Max 500 chars of context
+  if (!sentence.includes(selectedText) || sentence.length > selectedText.length + 500) {
     console.warn("getSentenceContext: Derived sentence too long or does not contain selected text. Using a smaller local context.");
-    // Create a smaller context around the selection
-    const contextRadius = 150; // Characters before and after
+    const contextRadius = 150;
     const localStart = Math.max(0, startIndexInFullText - contextRadius);
-    const localEnd = Math.min(fullText.length, endIndexInFullText + contextRadius);
-    sentence = fullText.substring(localStart, localEnd).trim();
-    // If even this doesn't contain selectedText (should be rare), fallback to just selectedText
+    const localEnd = Math.min(fullText.length, endIndexInFullText + contextRadius); // endIndexInFullText was used here, should be startIndexInFullText + selectedText.length
+    // Correcting localEnd based on definition of endIndexInFullText
+    const correctedLocalEnd = Math.min(fullText.length, (startIndexInFullText + selectedText.length) + contextRadius);
+    sentence = fullText.substring(localStart, correctedLocalEnd).trim();
     if (!sentence.includes(selectedText)) {
         sentence = selectedText;
     }
@@ -303,8 +248,6 @@ function getSentenceContext(selectionObject) {
   return { sentence, selectedText, anchorElement };
 }
 
-
-// displayAnalysis function remains for future use when API calls are re-integrated
 function displayAnalysis(originalElement, analysisText, isError) {
   if (!originalElement || !document.body.contains(originalElement)) {
     console.warn("Original element for analysis is no longer in the DOM. Cannot display analysis.");
@@ -340,5 +283,4 @@ function displayAnalysis(originalElement, analysisText, isError) {
   };
   analysisDiv.appendChild(closeButton);
 }
-
 // console.log("Text Analyzer AI Helper content script loaded.");

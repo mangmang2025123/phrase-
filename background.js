@@ -1,7 +1,7 @@
 const DEFAULT_PROMPT_TEMPLATE_BG = "In the following sentence, please explain the meaning of '{{SELECTED_TEXT}}'. Answer in Chinese. Sentence: {{SENTENCE}}";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "analyzeText") {
+  if (request.action === "explainSelectionInSentence") {
     // const textToAnalyze = request.text; // This will change
     const sentenceText = request.sentence; // New
     const selectedTextInSentence = request.selectedText; // New
@@ -75,7 +75,108 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ error: `Error calling LLM API: ${error.message}` });
       });
     });
-    return true; // Crucial for async analyzeText
+    return true; // Crucial for async operation
+
+  } else if (request.action === "analyzeWordForms") {
+    const selectedTextForForms = request.selectedText; // Expecting this from content.js
+
+    const WORD_FORMS_PROMPT_TEMPLATE = `You answer my questions according to the following rules:
+
+when:
+{
+user: Beauty
+you:
+Beauty (名词) - 美；美人
+Beautiful (形容词) - 美丽的
+Beautifully (副词) - 美丽地
+Beautify (动词) - 美化
+Beautician (名词) - 美容师
+Beauteous (形容词) - 美丽的 (文学化)
+Beautification (名词) - 美化
+Beautifier (名词) - 美化者/物
+}
+
+when:
+{
+user: been
+you:
+be (动词原形) - 是，存在
+am (动词) - 是 (用于第一人称单数现在时)
+is(动词) - 是 (用于第三人称单数现在时)
+are (动词) - 是 (用于第二人称单复数现在时，及第一、三人称复数现在时)
+was (动词) - 是 (用于第一、三人称单数过去时)
+were(动词) - 是 (用于第二人称单复数过去时，及第一、三人称复数过去时)
+being (动词现在分词 / 名词) - 正在是；存在，生物
+been(动词过去分词) - (已经)是
+}
+
+Wherein Beauty or been are both variables.
+Currently, the text input by the user is:{{SELECTED_TEXT}}`;
+
+    if (!selectedTextForForms) {
+      console.error("analyzeWordForms: selectedText is missing.");
+      sendResponse({ error: "Selected text is missing for word forms analysis." });
+      return true; // Important for async if error occurs early
+    }
+
+    const finalWordFormsPrompt = WORD_FORMS_PROMPT_TEMPLATE.replace("{{SELECTED_TEXT}}", selectedTextForForms);
+
+    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelPresets', 'selectedModelPresetIndex'], (config) => {
+      if (!config.apiEndpoint || !config.apiKey) {
+        console.error('API endpoint or key not configured for analyzeWordForms.');
+        sendResponse({ error: "API not configured. Please set it in the extension popup." });
+        return true;
+      }
+
+      let modelForAnalysis = "gpt-3.5-turbo"; // Default model
+      if (config.modelPresets && Array.isArray(config.modelPresets) &&
+          typeof config.selectedModelPresetIndex === 'number' &&
+          config.selectedModelPresetIndex >= 0 &&
+          config.selectedModelPresetIndex < config.modelPresets.length &&
+          config.modelPresets[config.selectedModelPresetIndex] &&
+          config.modelPresets[config.selectedModelPresetIndex].trim() !== "") {
+        modelForAnalysis = config.modelPresets[config.selectedModelPresetIndex];
+      } else {
+        console.warn(`Text Analyzer (analyzeWordForms): Model preset not properly configured. Defaulting to ${modelForAnalysis}.`);
+      }
+
+      const requestBody = {
+        model: modelForAnalysis,
+        messages: [{ role: "user", content: finalWordFormsPrompt }],
+        temperature: 0.7 // Or adjust as needed
+      };
+
+      fetch(config.apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(errorData => {
+            const errorMessage = errorData?.error?.message || `HTTP error! status: ${response.status}`;
+            throw new Error(errorMessage);
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.choices && data.choices.length > 0 && data.choices[0].message && data.choices[0].message.content) {
+          sendResponse({ analysis: data.choices[0].message.content });
+        } else {
+          console.error('Unexpected API response structure for analyzeWordForms:', data);
+          sendResponse({ error: "Failed to parse analysis from API response for word forms." });
+        }
+      })
+      .catch(error => {
+        console.error('Error calling LLM API for analyzeWordForms:', error);
+        sendResponse({ error: `Error calling LLM API for word forms: ${error.message}` });
+      });
+    });
+    return true; // Crucial for async operation
 
   } else if (request.action === "testApiConfig") {
     const { endpoint, apiKey, model: modelFromPopup } = request; // Renamed to avoid conflict
