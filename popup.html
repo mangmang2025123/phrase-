@@ -19,13 +19,13 @@
 
   <div id="settingsView">
     <h2>Settings</h2>
-  
+
     <label for="apiEndpoint">API Endpoint:</label>
   <input type="text" id="apiEndpoint" placeholder="e.g., https://api.openai.com/v1/chat/completions">
-  
+
   <label for="apiKey">API Key:</label>
   <input type="password" id="apiKey">
-  
+
   <label>Selected Model:</label>
   <div id="selectedModelDisplay" style="padding: 5px; border: 1px solid #eee; background: #f9f9f9; min-height: 20px; margin-top: 3px;">
     No model selected
@@ -39,7 +39,19 @@
     <button id="selectModelPreset4" data-preset-index="3">P4</button>
     <button id="selectModelPreset5" data-preset-index="4">P5</button>
   </div>
-  
+
+  <div id="customPromptSection" style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+    <label for="customPromptTemplate" style="font-weight: bold;">Custom Prompt Template:</label>
+    <p style="font-size: 0.85em; color: #444; margin-top: 2px; margin-bottom: 5px;">Use <code>{{TEXT_TO_ANALYZE}}</code> as the placeholder for the selected text from the webpage.</p>
+    <textarea id="customPromptTemplate" rows="8" style="width: 95%; margin-top: 3px; font-family: monospace; font-size: 0.9em;"></textarea>
+
+    <div style="margin-top: 5px;">
+      <button id="savePromptButton">Save Prompt</button>
+      <button id="resetPromptButton">Reset to Default</button>
+    </div>
+    <div id="promptStatus" style="margin-top: 5px; font-size: 0.9em;"></div>
+  </div>
+
   <button id="save">Save Settings</button>
   <div id="status"></div>
   <button id="testApiButton" style="margin-top: 5px;">Test API Configuration</button>
@@ -74,7 +86,7 @@
     <button id="saveModelPresets" style="margin-top: 15px;">Save Model Presets</button>
     <div id="modelPresetsStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
   </div>
-  
+
   <script src="popup.js"></script>
 </body>
 </html>

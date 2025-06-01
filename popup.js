@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const DEFAULT_PROMPT_TEMPLATE = "I'm a beginner in English. I know some individual words, but I don't know which words should be read together as fixed expressions or collocations. Please help me analyze the following sentence. Show me all the word groups that are fixed expressions, collocations, or commonly used phrases — like “right now”, “as soon as possible”, or “by the way”. For each group, explain what it means in simple English. answer in chinese The sentence is: {{TEXT_TO_ANALYZE}}";
+
   // View navigation elements
   const showSettingsViewButton = document.getElementById('showSettingsView');
   const showModelPresetsViewButton = document.getElementById('showModelPresetsView');
@@ -25,6 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveModelPresetsButton = document.getElementById('saveModelPresets');
   const modelPresetsStatusDiv = document.getElementById('modelPresetsStatus');
 
+  // Custom Prompt elements
+  const customPromptTextarea = document.getElementById('customPromptTemplate');
+  const savePromptButton = document.getElementById('savePromptButton');
+  const resetPromptButton = document.getElementById('resetPromptButton');
+  const promptStatusDiv = document.getElementById('promptStatus');
+
   // Data variables
   let currentModelPresets = ["", "", "", "", ""];
   let selectedModelPresetIndex = 0;
@@ -41,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Loading Data ---
   function loadData() {
-    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelPresets', 'selectedModelPresetIndex'], (result) => {
+    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelPresets', 'selectedModelPresetIndex', 'customPromptTemplate'], (result) => {
       if (result.apiEndpoint) apiEndpointInput.value = result.apiEndpoint;
       if (result.apiKey) apiKeyInput.value = result.apiKey;
 
@@ -54,12 +62,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize with empty strings if not found or malformed
          modelPresetInputs.forEach(input => input.value = "");
       }
-      
+
       selectedModelPresetIndex = (typeof result.selectedModelPresetIndex === 'number' && result.selectedModelPresetIndex >= 0 && result.selectedModelPresetIndex < 5) ? result.selectedModelPresetIndex : 0;
-      
+
       updateSelectedModelDisplay();
       updatePresetButtonLabels();
       highlightActivePresetButton();
+
+      if (result.customPromptTemplate && result.customPromptTemplate.includes("{{TEXT_TO_ANALYZE}}")) {
+        customPromptTextarea.value = result.customPromptTemplate;
+      } else {
+        customPromptTextarea.value = DEFAULT_PROMPT_TEMPLATE;
+        // Optionally, save the default back to storage if it wasn't valid or found
+        // This ensures background.js always has a valid prompt from storage after first run
+        chrome.storage.local.set({ customPromptTemplate: DEFAULT_PROMPT_TEMPLATE });
+      }
     });
   }
 
@@ -138,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
   }
-  
+
   function updateSelectedModelDisplay() {
     const selectedModel = currentModelPresets[selectedModelPresetIndex];
     if (selectedModel && selectedModel.trim() !== "") {
@@ -162,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   }
-  
+
   function updatePresetButtonLabels() {
     for (let i = 0; i < 5; i++) {
         const button = document.getElementById(`selectModelPreset${i+1}`);
@@ -197,4 +214,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Initial Load ---
   loadData(); // Load all data when popup opens
   showView(settingsView); // Show Settings view by default
+
+  // --- Custom Prompt Logic ---
+  savePromptButton.addEventListener('click', () => {
+    const newPrompt = customPromptTextarea.value.trim();
+    if (!newPrompt.includes("{{TEXT_TO_ANALYZE}}")) {
+      promptStatusDiv.textContent = 'Error: Prompt must include the {{TEXT_TO_ANALYZE}} placeholder.';
+      promptStatusDiv.style.color = 'red';
+      return;
+    }
+    chrome.storage.local.set({ customPromptTemplate: newPrompt }, () => {
+      promptStatusDiv.textContent = 'Prompt saved!';
+      promptStatusDiv.style.color = 'green';
+      setTimeout(() => { promptStatusDiv.textContent = ''; }, 2000);
+    });
+  });
+
+  resetPromptButton.addEventListener('click', () => {
+    customPromptTextarea.value = DEFAULT_PROMPT_TEMPLATE;
+    chrome.storage.local.set({ customPromptTemplate: DEFAULT_PROMPT_TEMPLATE }, () => {
+      promptStatusDiv.textContent = 'Prompt reset to default.';
+      promptStatusDiv.style.color = 'green';
+      setTimeout(() => { promptStatusDiv.textContent = ''; }, 2000);
+    });
+  });
 });

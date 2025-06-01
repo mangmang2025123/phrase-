@@ -10,13 +10,13 @@ document.addEventListener('mouseover', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.altKey && event.key === 'a') {
     event.preventDefault(); // Prevent any default browser action for 'alt+a'
-    
+
     if (lastHoveredElement) {
       const textContent = lastHoveredElement.textContent?.trim();
-      
+
       if (textContent) {
         // console.log("Hotkey pressed. Text to analyze:", textContent); // Optional: original console log
-        const originalElementForAnalysis = lastHoveredElement; 
+        const originalElementForAnalysis = lastHoveredElement;
 
         chrome.runtime.sendMessage({ action: "analyzeText", text: textContent }, (response) => {
           if (chrome.runtime.lastError) {
@@ -26,7 +26,7 @@ document.addEventListener('keydown', (event) => {
             displayAnalysis(originalElementForAnalysis, `Error: ${LCRmessage}`, true); // Enhanced message
             return;
           }
-          
+
           if (response) {
             if (response.error) {
               console.error("Error from background script:", response.error);
@@ -55,7 +55,7 @@ function displayAnalysis(originalElement, analysisText, isError) {
   if (!originalElement || !document.body.contains(originalElement)) {
     console.warn("Original element for analysis is no longer in the DOM. Cannot display analysis.");
     // Optionally, show a general notification if the original element is gone.
-    alert("Analysis result: " + analysisText); 
+    alert("Analysis result: " + analysisText);
     return;
   }
 
@@ -70,13 +70,13 @@ function displayAnalysis(originalElement, analysisText, isError) {
   analysisDiv.style.fontSize = '0.9em';
   analysisDiv.style.fontFamily = 'sans-serif';
   analysisDiv.style.color = isError ? 'red' : '#333';
-  analysisDiv.style.textAlign = 'left'; 
-  analysisDiv.style.whiteSpace = 'pre-wrap'; 
-  
+  analysisDiv.style.textAlign = 'left';
+  analysisDiv.style.whiteSpace = 'pre-wrap';
+
   analysisDiv.textContent = analysisText;
 
   originalElement.parentNode.insertBefore(analysisDiv, originalElement.nextSibling);
-  
+
   const closeButton = document.createElement('button');
   closeButton.textContent = 'Close Analysis';
   closeButton.style.display = 'block';
