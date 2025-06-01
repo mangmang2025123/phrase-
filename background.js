@@ -1,12 +1,12 @@
-const DEFAULT_PROMPT_TEMPLATE_BG = "In the following sentence, please explain the meaning of '{{SELECTED_TEXT}}'. Answer in Chinese. Sentence: {{SENTENCE}}";
+const DEFAULT_PROMPT_T_BG = "In the following sentence, please explain the meaning of '{{SELECTED_TEXT}}'. Answer in Chinese. Sentence: {{SENTENCE}}";
+const DEFAULT_PROMPT_S_BG = "You answer my questions according to the following rules:\n\nwhen:\n{\nuser: Beauty\nyou:\nBeauty (名词) - 美；美人\nBeautiful (形容词) - 美丽的\nBeautifully (副词) - 美丽地\nBeautify (动词) - 美化\nBeautician (名词) - 美容师\nBeauteous (形容词) - 美丽的 (文学化)\nBeautification (名词) - 美化\nBeautifier (名词) - 美化者/物\n}\n\nwhen:\n{\nuser: been\nyou:\nbe (动词原形) - 是，存在\nam (动词) - 是 (用于第一人称单数现在时)\nis(动词) - 是 (用于第三人称单数现在时)\nare (动词) - 是 (用于第二人称单复数现在时，及第一、三人称复数现在时)\nwas (动词) - 是 (用于第一、三人称单数过去时)\nwere(动词) - 是 (用于第二人称单复数过去时，及第一、三人称复数过去时)\nbeing (动词现在分词 / 名词) - 正在是；存在，生物\nbeen(动词过去分词) - (已经)是\n}\n\nWherein Beauty or been are both variables.\nCurrently, the text input by the user is:{{SELECTED_TEXT}}";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "explainSelectionInSentence") {
-    // const textToAnalyze = request.text; // This will change
-    const sentenceText = request.sentence; // New
-    const selectedTextInSentence = request.selectedText; // New
+    const sentenceText = request.sentence;
+    const selectedTextInSentence = request.selectedText;
 
-    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelPresets', 'selectedModelPresetIndex', 'customPromptTemplate'], (config) => {
+    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelPresets', 'selectedModelPresetIndex', 'promptT'], (config) => {
       if (!config.apiEndpoint || !config.apiKey) {
         console.error('API endpoint or key not configured.');
         sendResponse({ error: "API not configured. Please set it in the extension popup." });
@@ -22,27 +22,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           config.modelPresets[config.selectedModelPresetIndex].trim() !== "") {
         modelForAnalysis = config.modelPresets[config.selectedModelPresetIndex];
       } else {
-        console.warn(`Text Analyzer: Model preset not properly configured or selected. Defaulting to ${modelForAnalysis}. Presets: ${JSON.stringify(config.modelPresets)}, Index: ${config.selectedModelPresetIndex}`);
+        console.warn(`Text Analyzer (explainSelectionInSentence): Model preset not properly configured. Defaulting to ${modelForAnalysis}. Presets: ${JSON.stringify(config.modelPresets)}, Index: ${config.selectedModelPresetIndex}`);
       }
 
-      let chosenPromptTemplate = DEFAULT_PROMPT_TEMPLATE_BG;
-      if (config.customPromptTemplate && typeof config.customPromptTemplate === 'string' &&
-          config.customPromptTemplate.includes("{{SENTENCE}}") && config.customPromptTemplate.includes("{{SELECTED_TEXT}}")) {
-        chosenPromptTemplate = config.customPromptTemplate;
-      } else if (config.customPromptTemplate) {
-        console.warn("Text Analyzer: Invalid custom prompt (missing placeholders). Using default.");
+      let chosenPromptForT = DEFAULT_PROMPT_T_BG;
+      if (config.promptT && typeof config.promptT === 'string' &&
+          config.promptT.includes("{{SENTENCE}}") && config.promptT.includes("{{SELECTED_TEXT}}")) {
+        chosenPromptForT = config.promptT;
+      } else if (config.promptT) { // It exists but is invalid
+        console.warn("Text Analyzer (explainSelectionInSentence): Invalid promptT found in storage. Using default.");
       }
 
-      // Replace both placeholders
-      let finalPrompt = chosenPromptTemplate.replace("{{SENTENCE}}", sentenceText);
-      finalPrompt = finalPrompt.replace("{{SELECTED_TEXT}}", selectedTextInSentence);
+      let finalPromptForT = chosenPromptForT.replace("{{SENTENCE}}", sentenceText || ""); // Add fallback for sentenceText
+      finalPromptForT = finalPromptForT.replace("{{SELECTED_TEXT}}", selectedTextInSentence || ""); // Add fallback for selectedText
 
       const requestBody = {
-        model: modelForAnalysis, // This logic for modelForAnalysis should already exist
+        model: modelForAnalysis,
         messages: [
-          { role: "user", content: finalPrompt } // NEW: Use finalPrompt
+          { role: "user", content: finalPromptForT }
         ],
-        temperature: 0.7 // Or make this configurable later
+        temperature: 0.7
       };
 
       fetch(config.apiEndpoint, { // Uses saved endpoint and key
@@ -78,50 +77,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Crucial for async operation
 
   } else if (request.action === "analyzeWordForms") {
-    const selectedTextForForms = request.selectedText; // Expecting this from content.js
-
-    const WORD_FORMS_PROMPT_TEMPLATE = `You answer my questions according to the following rules:
-
-when:
-{
-user: Beauty
-you:
-Beauty (名词) - 美；美人
-Beautiful (形容词) - 美丽的
-Beautifully (副词) - 美丽地
-Beautify (动词) - 美化
-Beautician (名词) - 美容师
-Beauteous (形容词) - 美丽的 (文学化)
-Beautification (名词) - 美化
-Beautifier (名词) - 美化者/物
-}
-
-when:
-{
-user: been
-you:
-be (动词原形) - 是，存在
-am (动词) - 是 (用于第一人称单数现在时)
-is(动词) - 是 (用于第三人称单数现在时)
-are (动词) - 是 (用于第二人称单复数现在时，及第一、三人称复数现在时)
-was (动词) - 是 (用于第一、三人称单数过去时)
-were(动词) - 是 (用于第二人称单复数过去时，及第一、三人称复数过去时)
-being (动词现在分词 / 名词) - 正在是；存在，生物
-been(动词过去分词) - (已经)是
-}
-
-Wherein Beauty or been are both variables.
-Currently, the text input by the user is:{{SELECTED_TEXT}}`;
+    const selectedTextForForms = request.selectedText;
+    const sentenceForSContext = request.sentence; // Available if needed by a custom S prompt
 
     if (!selectedTextForForms) {
       console.error("analyzeWordForms: selectedText is missing.");
       sendResponse({ error: "Selected text is missing for word forms analysis." });
-      return true; // Important for async if error occurs early
+      return true;
     }
 
-    const finalWordFormsPrompt = WORD_FORMS_PROMPT_TEMPLATE.replace("{{SELECTED_TEXT}}", selectedTextForForms);
-
-    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelPresets', 'selectedModelPresetIndex'], (config) => {
+    chrome.storage.local.get(['apiEndpoint', 'apiKey', 'modelPresets', 'selectedModelPresetIndex', 'promptS'], (config) => {
       if (!config.apiEndpoint || !config.apiKey) {
         console.error('API endpoint or key not configured for analyzeWordForms.');
         sendResponse({ error: "API not configured. Please set it in the extension popup." });
@@ -140,10 +105,23 @@ Currently, the text input by the user is:{{SELECTED_TEXT}}`;
         console.warn(`Text Analyzer (analyzeWordForms): Model preset not properly configured. Defaulting to ${modelForAnalysis}.`);
       }
 
+      let chosenPromptForS = DEFAULT_PROMPT_S_BG;
+      if (config.promptS && typeof config.promptS === 'string' &&
+          config.promptS.includes("{{SELECTED_TEXT}}")) {
+        chosenPromptForS = config.promptS;
+      } else if (config.promptS) {
+        console.warn("Text Analyzer (analyzeWordForms): Invalid promptS found in storage. Using default.");
+      }
+
+      let finalPromptForS = chosenPromptForS.replace("{{SELECTED_TEXT}}", selectedTextForForms);
+      if (chosenPromptForS.includes("{{SENTENCE}}")) {
+         finalPromptForS = finalPromptForS.replace("{{SENTENCE}}", sentenceForSContext || "");
+      }
+
       const requestBody = {
         model: modelForAnalysis,
-        messages: [{ role: "user", content: finalWordFormsPrompt }],
-        temperature: 0.7 // Or adjust as needed
+        messages: [{ role: "user", content: finalPromptForS }],
+        temperature: 0.7
       };
 
       fetch(config.apiEndpoint, {
